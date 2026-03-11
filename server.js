@@ -483,12 +483,12 @@ app.get('/stats', authenticate, (req, res) => {
   }});
 });
 
-app.get('/', (req,res) => res.redirect('/mobile/index.html'));
+app.get('/', (req,res) => res.redirect('/landing.html'));
 
 
 app.use('/mobile', require('express').static(require('path').join(__dirname, 'mobile')));
 
 
 app.use('/mobile', express.static(require('path').join(__dirname, 'mobile')));
-app.listen(process.env.PORT || 3001, () => { console.log('\n?? Live Sense AI v6.0 — http://localhost:3001\n?? PWA: http://localhost:3001/mobile'); });
+app.listen(process.env.PORT || 3001, () => { console.log('\n?? Live Sense AI v6.0 ï¿½ http://localhost:3001\n?? PWA: http://localhost:3001/mobile'); });
 app.use(require('express').static(__dirname));
