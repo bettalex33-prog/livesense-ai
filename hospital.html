@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Sense AI — Hospital Monitor</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;} body{margin:0;background:#030a14;font-family:'Rajdhani',sans-serif;}
+  .mono{font-family:'Share Tech Mono',monospace;}
+  body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,180,0.015) 2px,rgba(0,255,180,0.015) 4px);pointer-events:none;z-index:9999;}
+  .glow-green{text-shadow:0 0 8px #00ffb4,0 0 20px #00ffb480;}
+  .card-glow{box-shadow:0 0 0 1px rgba(0,255,180,0.15),0 4px 32px rgba(0,255,180,0.05);transition:box-shadow 0.3s;}
+  .card-glow:hover{box-shadow:0 0 0 1px rgba(0,255,180,0.4),0 4px 40px rgba(0,255,180,0.15);}
+  .card-alert{box-shadow:0 0 0 1px rgba(255,68,102,0.6),0 4px 32px rgba(255,68,102,0.2);animation:alertPulse 1.2s infinite;}
+  @keyframes alertPulse{0%,100%{box-shadow:0 0 0 1px rgba(255,68,102,0.6),0 4px 32px rgba(255,68,102,0.2);}50%{box-shadow:0 0 0 2px rgba(255,68,102,0.9),0 4px 48px rgba(255,68,102,0.4);}}
+  .login-bg{background:radial-gradient(ellipse at 50% 40%,#001a2e 0%,#030a14 70%);}
+  .login-input{background:rgba(0,255,180,0.04);border:1px solid rgba(0,255,180,0.2);color:#e0fff8;outline:none;transition:border-color 0.2s;}
+  .login-input:focus{border-color:rgba(0,255,180,0.6);box-shadow:0 0 12px rgba(0,255,180,0.15);}
+  .login-btn{background:linear-gradient(135deg,#00ffb4,#00c8ff);color:#030a14;font-weight:700;letter-spacing:2px;}
+  ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-track{background:#030a14;} ::-webkit-scrollbar-thumb{background:#00ffb440;border-radius:2px;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+  .fade-in{animation:fadeIn 0.4s ease both;}
+  .notes-input{background:rgba(0,255,180,0.03);border:1px solid rgba(0,255,180,0.15);color:#c0ffe8;outline:none;resize:none;font-family:'Share Tech Mono',monospace;font-size:12px;}
+  .notes-input:focus{border-color:rgba(0,255,180,0.4);}
+  .modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(3,10,20,0.88);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;}
+  .modal-box{background:#060f1e;border:1px solid rgba(0,255,180,0.2);border-radius:16px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;animation:fadeIn 0.25s ease;}
+  .sound-btn-on{background:rgba(0,255,180,0.12);border:1px solid rgba(0,255,180,0.4);color:#00ffb4;}
+  .sound-btn-off{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#8899aa;}
+  @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(20px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:2000;padding:10px 20px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:13px;animation:toastIn 0.3s ease;white-space:nowrap;}
+  .tab-btn{font-family:'Share Tech Mono',monospace;font-size:11px;padding:6px 12px;border-radius:6px;cursor:pointer;transition:all 0.2s;}
+  .tab-active{background:rgba(0,255,180,0.15);color:#00ffb4;border:1px solid rgba(0,255,180,0.4);}
+  .tab-inactive{background:rgba(255,255,255,0.04);color:#8899aa;border:1px solid rgba(255,255,255,0.08);}
+  .ecg-bg{background:repeating-linear-gradient(0deg,rgba(0,255,100,0.04) 0px,transparent 1px,transparent 10px),repeating-linear-gradient(90deg,rgba(0,255,100,0.04) 0px,transparent 1px,transparent 10px);}
+  @keyframes ecgScroll{from{stroke-dashoffset:400;}to{stroke-dashoffset:0;}}
+  .ecg-line{stroke-dasharray:400;animation:ecgScroll 2s linear infinite;}
+  /* Risk level colors */
+  .risk-LOW{background:rgba(0,255,180,0.1);border:1px solid rgba(0,255,180,0.3);color:#00ffb4;}
+  .risk-MEDIUM{background:rgba(255,204,0,0.1);border:1px solid rgba(255,204,0,0.3);color:#ffcc00;}
+  .risk-HIGH{background:rgba(255,120,0,0.1);border:1px solid rgba(255,120,0,0.3);color:#ff7800;}
+  .risk-CRITICAL{background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.5);color:#ff4466;animation:alertPulse 1s infinite;}
+  /* Role badge colors */
+  .role-Doctor{background:rgba(0,170,255,0.15);border:1px solid rgba(0,170,255,0.4);color:#00aaff;}
+  .role-Nurse{background:rgba(0,255,180,0.12);border:1px solid rgba(0,255,180,0.3);color:#00ffb4;}
+  .role-Pharmacist{background:rgba(204,136,255,0.12);border:1px solid rgba(204,136,255,0.3);color:#cc88ff;}
+  .role-Radiologist{background:rgba(255,204,0,0.1);border:1px solid rgba(255,204,0,0.3);color:#ffcc00;}
+  .role-Admin{background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.3);color:#ff4466;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{animation:spin 1s linear infinite;display:inline-block;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useRef}=React;
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+const rand=(a,b)=>Math.random()*(b-a)+a;
+const API='http://localhost:3001';
+let _token=null, _permissions=[];
+
+const api=async(method,path,body)=>{
+  const res=await fetch(`${API}${path}`,{method,headers:{'Content-Type':'application/json',...(_token?{Authorization:`Bearer ${_token}`}:{})},
+  ...(body?{body:JSON.stringify(body)}:{})});
+  const data=await res.json();
+  if(!res.ok) throw new Error(data.error||'Failed');
+  return data;
+};
+
+const can=(perm)=>_permissions.includes(perm);
+const isAlert=p=>p.hr>100||p.hr<55||p.o2<93||p.bp>140||p.temp>38.5;
+
+const playBeep=()=>{
+  try{const ctx=new(window.AudioContext||window.webkitAudioContext)();
+  [[880,0,0.12],[660,0.16,0.12],[880,0.32,0.18]].forEach(([f,s,d])=>{
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.connect(g);g.connect(ctx.destination);o.frequency.value=f;o.type='sine';
+    g.gain.setValueAtTime(0.18,ctx.currentTime+s);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+s+d);
+    o.start(ctx.currentTime+s);o.stop(ctx.currentTime+s+d+0.05);
+  });}catch(e){}
+};
+
+// ── ECG Waveform ──────────────────────────────────────────────────────────────
+const ECGWaveform=({data,color='#00ff64',width=280,height=48,pattern='normal'})=>{
+  if(!data||data.length<2)return null;
+  const min=Math.min(...data),max=Math.max(...data),range=max-min||0.1;
+  const pts=data.map((v,i)=>`${((i/(data.length-1))*width).toFixed(1)},${(height-((v-min)/range)*(height-6)-3).toFixed(1)}`);
+  const c=pattern==='afib'?'#ffaa00':pattern==='tachy'?'#ff4466':color;
+  return(<div className="ecg-bg rounded" style={{background:'#020c08'}}>
+    <svg width={width} height={height} style={{display:'block'}}>
+      <defs><filter id="glow2"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+      <polyline points={pts.join(' ')} fill="none" stroke={c} strokeWidth="1.5" strokeLinejoin="round" filter="url(#glow2)" className="ecg-line"/>
+    </svg>
+  </div>);
+};
+
+const SpO2Wave=({data,o2})=>{
+  if(!data||data.length<2)return null;
+  const w=110,h=26,min=Math.min(...data),max=Math.max(...data),range=max-min||0.1;
+  const pts=data.map((v,i)=>`${(i/(data.length-1))*w},${h-((v-min)/range)*(h-4)-2}`);
+  const c=o2<90?'#ff4466':o2<95?'#ffaa00':'#00aaff';
+  return<svg width={w} height={h} style={{overflow:'visible'}}><polyline points={pts.join(' ')} fill="none" stroke={c} strokeWidth="1.5" strokeLinejoin="round"/></svg>;
+};
+
+const Sparkline=({data,color})=>{
+  if(!data||data.length<2)return null;
+  const w=64,h=22,min=Math.min(...data),max=Math.max(...data),range=max-min||1;
+  const pts=data.map((v,i)=>`${(i/(data.length-1))*w},${h-((v-min)/range)*(h-4)-2}`);
+  return<svg width={w} height={h} style={{overflow:'visible'}}><polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/></svg>;
+};
+
+// ── AI Diagnosis Modal ────────────────────────────────────────────────────────
+const AIDiagnosisModal=({patient,onClose,showToast})=>{
+  const[diagnosis,setDiagnosis]=useState(null);
+  const[history,setHistory]=useState([]);
+  const[loading,setLoading]=useState(false);
+  const[tab,setTab]=useState('analyze');
+
+  useEffect(()=>{
+    api('GET',`/ai/history/${patient.id}`).then(d=>setHistory(d.history)).catch(()=>{});
+  },[patient.id]);
+
+  const runAnalysis=async()=>{
+    setLoading(true);setDiagnosis(null);
+    try{
+      const data=await api('POST',`/ai/diagnose/${patient.id}`,{hr:Math.round(patient.hr),bp:Math.round(patient.bp),o2:Math.round(patient.o2),temp:patient.temp});
+      setDiagnosis(data.diagnosis);
+      setHistory(prev=>[{...data.diagnosis,requested_by:'You',created_at:new Date().toISOString()},...prev]);
+      showToast(`🤖 AI analysis complete — ${data.diagnosis.risk_level} risk`);
+      setTab('result');
+    }catch(e){showToast(`❌ ${e.message}`,'red');}
+    setLoading(false);
+  };
+
+  const riskColor={LOW:'#00ffb4',MEDIUM:'#ffcc00',HIGH:'#ff7800',CRITICAL:'#ff4466'};
+
+  return(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box p-6" onClick={e=>e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <div className="font-bold text-xl" style={{color:'#e0fff8'}}>🤖 AI Clinical Analysis</div>
+            <div className="mono text-xs mt-1" style={{color:'#8899aa'}}>{patient.name} · {patient.condition} · Room {patient.room}</div>
+          </div>
+          <button onClick={onClose} style={{color:'#8899aa',background:'none',border:'none',fontSize:'18px',cursor:'pointer'}}>✕</button>
+        </div>
+
+        <div className="flex gap-2 mb-4">
+          <button className={`tab-btn ${tab==='analyze'?'tab-active':'tab-inactive'}`} onClick={()=>setTab('analyze')}>🔬 ANALYZE</button>
+          <button className={`tab-btn ${tab==='result'?'tab-active':'tab-inactive'}`} onClick={()=>setTab('result')}>📊 RESULT</button>
+          <button className={`tab-btn ${tab==='history'?'tab-active':'tab-inactive'}`} onClick={()=>setTab('history')}>📋 HISTORY ({history.length})</button>
+        </div>
+
+        {tab==='analyze'&&(
+          <div>
+            {/* Current vitals snapshot */}
+            <div className="rounded-xl p-4 mb-4" style={{background:'rgba(0,255,180,0.04)',border:'1px solid rgba(0,255,180,0.15)'}}>
+              <div className="mono text-xs mb-3" style={{color:'#8899aa'}}>VITALS TO ANALYZE:</div>
+              <div className="grid grid-cols-4 gap-3">
+                {[['❤️ HR',`${Math.round(patient.hr)} bpm`,patient.hr>100||patient.hr<55?'#ff4466':'#00ffb4'],
+                  ['💉 BP',`${Math.round(patient.bp)} mmHg`,patient.bp>140?'#ff4466':'#00aaff'],
+                  ['🫁 SpO₂',`${Math.round(patient.o2)}%`,patient.o2<93?'#ff4466':'#ffcc00'],
+                  ['🌡️ Temp',`${patient.temp?.toFixed(1)}°C`,patient.temp>38.5?'#ff4466':'#cc88ff'],
+                ].map(([l,v,c])=>(
+                  <div key={l} className="rounded-lg p-3 text-center" style={{background:'rgba(0,0,0,0.3)',border:`1px solid ${c}30`}}>
+                    <div className="mono text-xs mb-1" style={{color:'#8899aa'}}>{l}</div>
+                    <div className="font-bold mono" style={{color:c,fontSize:'16px'}}>{v}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-lg p-3 mb-4 mono text-xs" style={{background:'rgba(0,170,255,0.06)',border:'1px solid rgba(0,170,255,0.15)',color:'#00aaff'}}>
+              🤖 Claude AI will analyze vitals, condition history, and clinical notes to provide risk assessment and recommendations.
+            </div>
+            <button onClick={runAnalysis} disabled={loading} style={{width:'100%',padding:'14px',borderRadius:'10px',fontWeight:'700',fontSize:'15px',letterSpacing:'1px',cursor:loading?'wait':'pointer',background:loading?'rgba(0,255,180,0.1)':'linear-gradient(135deg,#00ffb4,#00c8ff)',color:'#030a14',border:'none'}}>
+              {loading?<span><span className="spin">⚙</span> ANALYZING WITH AI...</span>:'🤖 RUN AI DIAGNOSIS'}
+            </button>
+          </div>
+        )}
+
+        {tab==='result'&&(diagnosis?(
+          <div>
+            {/* Risk level banner */}
+            <div className={`rounded-xl p-4 mb-4 risk-${diagnosis.risk_level}`}>
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="mono text-xs mb-1" style={{color:'inherit',opacity:0.7}}>RISK ASSESSMENT</div>
+                  <div className="font-bold text-2xl mono">{diagnosis.risk_level}</div>
+                </div>
+                <div className="text-right">
+                  <div className="mono text-xs" style={{opacity:0.7}}>RISK SCORE</div>
+                  <div className="font-bold text-3xl mono">{diagnosis.risk_score}/100</div>
+                </div>
+              </div>
+              {/* Risk bar */}
+              <div className="mt-3 rounded-full h-2" style={{background:'rgba(0,0,0,0.3)'}}>
+                <div className="rounded-full h-2 transition-all" style={{width:`${diagnosis.risk_score}%`,background:riskColor[diagnosis.risk_level]}}></div>
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div className="rounded-lg p-4 mb-4" style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.08)'}}>
+              <div className="mono text-xs mb-2" style={{color:'#8899aa'}}>AI SUMMARY</div>
+              <div className="text-sm leading-relaxed" style={{color:'#c0ffe8'}}>{diagnosis.summary}</div>
+            </div>
+
+            {/* Vitals analysis */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {Object.entries(diagnosis.vitals_analysis||{}).map(([k,v])=>{
+                const c=v==='critical'?'#ff4466':v==='low'||v==='elevated'||v==='fever'?'#ffaa00':'#00ffb4';
+                return(<div key={k} className="rounded-lg p-3" style={{background:'rgba(0,0,0,0.3)',border:`1px solid ${c}25`}}>
+                  <div className="mono text-xs" style={{color:'#8899aa'}}>{k.replace('_',' ').toUpperCase()}</div>
+                  <div className="mono text-sm font-bold uppercase" style={{color:c}}>{v}</div>
+                </div>);
+              })}
+            </div>
+
+            {/* Concerns */}
+            {diagnosis.concerns?.length>0&&(
+              <div className="mb-4">
+                <div className="mono text-xs mb-2" style={{color:'#ff7800'}}>⚠ CLINICAL CONCERNS</div>
+                {diagnosis.concerns.map((c,i)=>(
+                  <div key={i} className="rounded px-3 py-2 mb-1 mono text-xs" style={{background:'rgba(255,120,0,0.08)',border:'1px solid rgba(255,120,0,0.2)',color:'#ffaa66'}}>→ {c}</div>
+                ))}
+              </div>
+            )}
+
+            {/* Recommendations */}
+            <div className="mb-4">
+              <div className="mono text-xs mb-2" style={{color:'#00aaff'}}>📋 RECOMMENDATIONS</div>
+              {diagnosis.recommendations?.map((r,i)=>(
+                <div key={i} className="rounded px-3 py-2 mb-1 mono text-xs" style={{background:'rgba(0,170,255,0.06)',border:'1px solid rgba(0,170,255,0.15)',color:'#88ccff'}}>✓ {r}</div>
+              ))}
+            </div>
+
+            {/* Suggested tests */}
+            {diagnosis.suggested_tests?.length>0&&(
+              <div className="mb-4">
+                <div className="mono text-xs mb-2" style={{color:'#cc88ff'}}>🧪 SUGGESTED TESTS</div>
+                <div className="flex flex-wrap gap-2">
+                  {diagnosis.suggested_tests.map((t,i)=>(
+                    <span key={i} className="mono text-xs px-2 py-1 rounded" style={{background:'rgba(204,136,255,0.08)',border:'1px solid rgba(204,136,255,0.2)',color:'#cc88ff'}}>{t}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Disclaimer */}
+            <div className="rounded-lg p-3 mono text-xs" style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)',color:'#8899aa'}}>
+              ⚠️ {diagnosis.disclaimer}
+            </div>
+          </div>
+        ):<div className="text-center py-12 mono text-sm" style={{color:'#8899aa'}}>No analysis yet. Click ANALYZE tab to run.</div>)}
+
+        {tab==='history'&&(
+          <div>
+            {history.length===0?<div className="text-center py-12 mono text-sm" style={{color:'#8899aa'}}>No previous analyses.</div>
+            :history.map((h,i)=>(
+              <div key={i} className="rounded-xl p-4 mb-3" style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)'}}>
+                <div className="flex justify-between items-center mb-2">
+                  <span className={`mono text-xs px-2 py-1 rounded risk-${h.risk_level}`}>{h.risk_level} — Score: {h.risk_score}</span>
+                  <span className="mono text-xs" style={{color:'#8899aa'}}>{new Date(h.created_at).toLocaleString()}</span>
+                </div>
+                <div className="mono text-xs" style={{color:'#c0ffe8'}}>{h.summary}</div>
+                {h.requested_by&&<div className="mono text-xs mt-1" style={{color:'#8899aa'}}>By: {h.requested_by}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Notes Modal ───────────────────────────────────────────────────────────────
+const NotesModal=({patient,onClose,showToast})=>{
+  const[notes,setNotes]=useState([]);
+  const[text,setText]=useState('');
+  const[tab,setTab]=useState('view');
+  const[saving,setSaving]=useState(false);
+  useEffect(()=>{api('GET',`/patients/${patient.id}/notes`).then(d=>setNotes(d.notes)).catch(()=>{});},[]);
+  const save=async()=>{
+    if(!text.trim())return;setSaving(true);
+    try{await api('POST',`/patients/${patient.id}/notes`,{content:text});const d=await api('GET',`/patients/${patient.id}/notes`);setNotes(d.notes);setText('');showToast('📋 Note saved');setTab('view');}
+    catch(e){showToast('❌ Failed','red');}setSaving(false);
+  };
+  return(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box p-6" onClick={e=>e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-4">
+          <div><div className="font-bold text-lg" style={{color:'#e0fff8'}}>{patient.name}</div><div className="mono text-xs" style={{color:'#8899aa'}}>Room {patient.room} · {patient.condition}</div></div>
+          <button onClick={onClose} style={{color:'#8899aa',background:'none',border:'none',fontSize:'18px',cursor:'pointer'}}>✕</button>
+        </div>
+        <div className="flex gap-2 mb-4">
+          <button className={`tab-btn ${tab==='view'?'tab-active':'tab-inactive'}`} onClick={()=>setTab('view')}>📋 NOTES ({notes.length})</button>
+          {can('add_notes')&&<button className={`tab-btn ${tab==='add'?'tab-active':'tab-inactive'}`} onClick={()=>setTab('add')}>✏️ ADD</button>}
+        </div>
+        {tab==='view'&&(notes.length===0?<div className="text-center py-8 mono text-xs" style={{color:'#8899aa'}}>No notes yet.</div>
+          :notes.map(n=>(
+          <div key={n.id} className="rounded-lg p-3 mb-3" style={{background:'rgba(0,255,180,0.04)',border:'1px solid rgba(0,255,180,0.1)'}}>
+            <div className="flex justify-between mb-1">
+              <span className="mono text-xs font-bold" style={{color:'#00ffb4'}}>{n.author} <span className={`mono text-xs px-1 rounded role-${n.author_role}`}>{n.author_role}</span></span>
+              <span className="mono text-xs" style={{color:'#8899aa'}}>{new Date(n.created_at).toLocaleString()}</span>
+            </div>
+            <div className="text-sm" style={{color:'#c0ffe8'}}>{n.content}</div>
+          </div>
+        )))}
+        {tab==='add'&&(<div>
+          <textarea className="notes-input w-full rounded-lg p-3 mb-4" rows={5} placeholder="Clinical notes..." value={text} onChange={e=>setText(e.target.value)}/>
+          <div className="flex gap-3">
+            <button onClick={save} disabled={saving} style={{flex:1,padding:'10px',borderRadius:'8px',fontWeight:'700',background:'linear-gradient(135deg,#00ffb4,#00c8ff)',color:'#030a14',border:'none',cursor:'pointer'}}>{saving?'SAVING...':'💾 SAVE'}</button>
+            <button onClick={onClose} style={{padding:'10px 16px',borderRadius:'8px',background:'rgba(255,255,255,0.05)',color:'#8899aa',border:'1px solid #ffffff15',cursor:'pointer'}}>CANCEL</button>
+          </div>
+        </div>)}
+      </div>
+    </div>
+  );
+};
+
+// ── Discharge Modal ───────────────────────────────────────────────────────────
+const DischargeModal=({patient,onConfirm,onClose})=>(
+  <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-box p-6" onClick={e=>e.stopPropagation()}>
+      <div className="text-center mb-6">
+        <div className="text-4xl mb-3">🏥</div>
+        <div className="font-bold text-xl" style={{color:'#e0fff8'}}>Discharge {patient.name}?</div>
+        <div className="mono text-sm mt-2" style={{color:'#8899aa'}}>Recorded in database with timestamp.</div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={()=>{onConfirm(patient);onClose();}} style={{flex:1,padding:'10px',borderRadius:'8px',fontWeight:'700',background:'rgba(255,170,0,0.15)',border:'1px solid rgba(255,170,0,0.5)',color:'#ffaa00',cursor:'pointer'}}>CONFIRM</button>
+        <button onClick={onClose} style={{padding:'10px 16px',borderRadius:'8px',background:'rgba(255,255,255,0.05)',color:'#8899aa',border:'1px solid #ffffff15',cursor:'pointer'}}>CANCEL</button>
+      </div>
+    </div>
+  </div>
+);
+
+// ── Stats Modal ───────────────────────────────────────────────────────────────
+const StatsModal=({onClose})=>{
+  const[stats,setStats]=useState(null);const[audit,setAudit]=useState([]);const[tab,setTab]=useState('stats');
+  useEffect(()=>{api('GET','/stats').then(d=>setStats(d.stats)).catch(()=>{});api('GET','/audit').then(d=>setAudit(d.logs)).catch(()=>{});},[]); 
+  return(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box p-6" onClick={e=>e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-4">
+          <div className="font-bold text-lg" style={{color:'#e0fff8'}}>📊 Database Stats</div>
+          <button onClick={onClose} style={{color:'#8899aa',background:'none',border:'none',fontSize:'18px',cursor:'pointer'}}>✕</button>
+        </div>
+        <div className="flex gap-2 mb-4">
+          <button className={`tab-btn ${tab==='stats'?'tab-active':'tab-inactive'}`} onClick={()=>setTab('stats')}>📊 STATS</button>
+          <button className={`tab-btn ${tab==='audit'?'tab-active':'tab-inactive'}`} onClick={()=>setTab('audit')}>🔍 AUDIT</button>
+        </div>
+        {tab==='stats'&&stats&&(<div className="grid grid-cols-2 gap-3">
+          {[['Active Patients',stats.active_patients,'#00ffb4'],['Discharged',stats.discharged,'#ffaa00'],
+            ['Vitals Today',stats.vitals_today,'#00aaff'],['Total Vitals',stats.total_vitals,'#cc88ff'],
+            ['AI Analyses Today',stats.ai_today,'#ff7800'],['Total AI Analyses',stats.ai_analyses,'#ff4466'],
+            ['Notes Written',stats.total_notes,'#00ff64'],['System Users',stats.total_users,'#ffcc00'],
+          ].map(([l,v,c])=>(
+            <div key={l} className="rounded-lg p-3" style={{background:'rgba(255,255,255,0.03)',border:`1px solid ${c}25`}}>
+              <div className="mono text-xs mb-1" style={{color:'#8899aa'}}>{l}</div>
+              <div className="text-3xl font-bold mono" style={{color:c}}>{v}</div>
+            </div>
+          ))}
+        </div>)}
+        {tab==='audit'&&(<div style={{maxHeight:'360px',overflowY:'auto'}}>
+          {audit.map(log=>(
+            <div key={log.id} className="rounded px-3 py-2 mb-2 mono text-xs" style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)'}}>
+              <div className="flex justify-between mb-1">
+                <span style={{color:log.action.includes('AI')?'#ff7800':log.action.includes('LOGIN')?'#00ffb4':'#00aaff'}}>{log.action}</span>
+                <span style={{color:'#8899aa'}}>{new Date(log.created_at).toLocaleTimeString()}</span>
+              </div>
+              <div style={{color:'#8899aa'}}>{log.user_name} — {log.details}</div>
+            </div>
+          ))}
+        </div>)}
+      </div>
+    </div>
+  );
+};
+
+// ── FHIR Modal ────────────────────────────────────────────────────────────────
+const FHIRModal=({onClose,showToast})=>{
+  const[search,setSearch]=useState('');const[results,setResults]=useState([]);const[selected,setSelected]=useState(null);const[loading,setLoading]=useState(false);
+  const doSearch=async()=>{
+    setLoading(true);setResults([]);setSelected(null);
+    try{const d=await api('GET',`/fhir/search?name=${encodeURIComponent(search)}&count=8`);setResults(d.patients);if(!d.patients.length)showToast('No FHIR patients found','orange');}
+    catch(e){showToast('⚠ FHIR unavailable','orange');}setLoading(false);
+  };
+  const fetchDetail=async(id)=>{
+    setLoading(true);
+    try{const d=await api('GET',`/fhir/patient/${id}`);setSelected(d.fhir);showToast('✅ FHIR patient loaded');}
+    catch(e){showToast('⚠ FHIR error','orange');}setLoading(false);
+  };
+  return(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box p-6" onClick={e=>e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-4">
+          <div><div className="font-bold text-lg" style={{color:'#00aaff'}}>🔬 FHIR Patient Database</div>
+          <div className="mono text-xs mt-1" style={{color:'#8899aa'}}>HAPI FHIR R4 — same standard as NHS, WHO, Epic</div></div>
+          <button onClick={onClose} style={{color:'#8899aa',background:'none',border:'none',fontSize:'18px',cursor:'pointer'}}>✕</button>
+        </div>
+        <div className="flex gap-2 mb-3">
+          <input className="login-input flex-1 rounded-lg px-4 py-2 mono text-sm" placeholder="Search by name..." value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Enter'&&doSearch()}/>
+          <button onClick={doSearch} style={{padding:'8px 16px',borderRadius:'8px',background:'rgba(0,170,255,0.15)',color:'#00aaff',border:'1px solid rgba(0,170,255,0.4)',cursor:'pointer',fontFamily:'Share Tech Mono',fontSize:'12px'}}>{loading?'...':'SEARCH'}</button>
+        </div>
+        <div className="flex gap-2 mb-4 flex-wrap">
+          {['Smith','Jones','Brown','Johnson'].map(n=>(
+            <button key={n} onClick={()=>setSearch(n)} className="mono text-xs px-2 py-1 rounded" style={{background:'rgba(0,170,255,0.06)',color:'#00aaff',border:'1px solid rgba(0,170,255,0.15)',cursor:'pointer'}}>{n}</button>
+          ))}
+        </div>
+        {results.length>0&&!selected&&results.map((p,i)=>(
+          <div key={i} onClick={()=>fetchDetail(p.fhir_id)} className="rounded-lg p-3 mb-2 cursor-pointer"
+            style={{background:'rgba(0,170,255,0.04)',border:'1px solid rgba(0,170,255,0.1)',transition:'all 0.2s'}}
+            onMouseEnter={e=>e.currentTarget.style.background='rgba(0,170,255,0.1)'}
+            onMouseLeave={e=>e.currentTarget.style.background='rgba(0,170,255,0.04)'}>
+            <div className="flex justify-between">
+              <span className="font-bold" style={{color:'#e0fff8'}}>{p.name}</span>
+              <span className="mono text-xs" style={{color:'#8899aa'}}>ID: {p.fhir_id}</span>
+            </div>
+            <div className="mono text-xs" style={{color:'#8899aa'}}>DOB: {p.dob} · {p.gender}</div>
+          </div>
+        ))}
+        {selected&&(
+          <div className="rounded-xl p-4" style={{background:'rgba(0,170,255,0.06)',border:'1px solid rgba(0,170,255,0.2)'}}>
+            <div className="flex justify-between mb-3">
+              <div className="font-bold text-lg" style={{color:'#00aaff'}}>{selected.name}</div>
+              <button onClick={()=>setSelected(null)} className="mono text-xs" style={{color:'#8899aa',background:'none',border:'none',cursor:'pointer'}}>← BACK</button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[['FHIR ID',selected.fhir_id],['DOB',selected.dob],['Gender',selected.gender],['Language',selected.language],['Marital',selected.marital],['Location',selected.address]].map(([k,v])=>(
+                <div key={k} className="rounded p-2" style={{background:'rgba(0,0,0,0.3)'}}>
+                  <div className="mono text-xs" style={{color:'#8899aa'}}>{k}</div>
+                  <div className="mono text-sm" style={{color:'#e0fff8'}}>{v||'—'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Patient Card ──────────────────────────────────────────────────────────────
+const PatientCard=({p,delay,onNotes,onDischarge,onSimulate,onAI})=>{
+  const alert=isAlert(p);
+  const ecgColor=p.ecg_pattern==='afib'?'#ffaa00':p.ecg_pattern==='tachy'?'#ff4466':'#00ff64';
+  return(
+    <div className={`rounded-xl p-5 fade-in ${alert?'card-alert':'card-glow'}`} style={{background:'#060f1e',animationDelay:`${delay}ms`}}>
+      <div className="flex justify-between items-start mb-2">
+        <div>
+          <div className="text-lg font-bold" style={{color:'#e0fff8'}}>{p.name}</div>
+          <div className="mono text-xs" style={{color:'#8899aa'}}>Room {p.room} · {p.ward}</div>
+          <div className="mono text-xs mt-1" style={{color:p.ecg_pattern==='afib'?'#ffaa00':p.ecg_pattern==='tachy'?'#ff4466':'#8899aa'}}>
+            {p.condition}{p.ecg_pattern==='afib'?' · AFib':p.ecg_pattern==='tachy'?' · Tachycardia':''}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          {alert&&<div className="mono text-xs px-2 py-1 rounded" style={{background:'rgba(255,68,102,0.15)',color:'#ff4466',border:'1px solid #ff446640'}}>⚠ ALERT</div>}
+          {p.blood_type&&<div className="mono text-xs px-2 py-1 rounded" style={{background:'rgba(255,255,255,0.05)',color:'#cc88ff'}}>🩸 {p.blood_type}</div>}
+          {p.last_ai&&<div className={`mono text-xs px-2 py-1 rounded risk-${p.last_ai}`}>{p.last_ai}</div>}
+        </div>
+      </div>
+
+      {p.ecg_waveform&&(<div className="mb-3">
+        <div className="mono text-xs mb-1" style={{color:'#8899aa'}}>ECG — <span style={{color:ecgColor}}>{p.ecg_pattern==='afib'?'Atrial Fibrillation':p.ecg_pattern==='tachy'?'Tachycardia':'Normal Sinus'}</span></div>
+        <ECGWaveform data={p.ecg_waveform} color={ecgColor} pattern={p.ecg_pattern} width={280} height={48}/>
+      </div>)}
+
+      <div className="grid grid-cols-4 gap-2 mb-3">
+        {[['HR',Math.round(p.hr),'bpm',p.history?.hr,p.hr>100||p.hr<55?'#ff4466':'#00ffb4'],
+          ['BP',Math.round(p.bp),'mmHg',p.history?.bp,p.bp>140?'#ff4466':'#00aaff'],
+          ['O₂',`${Math.round(p.o2)}%`,'',p.history?.o2,p.o2<93?'#ff4466':'#ffcc00'],
+          ['°C',p.temp?.toFixed(1),'',null,p.temp>38.5?'#ff4466':'#cc88ff'],
+        ].map(([l,v,u,spark,c])=>(
+          <div key={l} style={{background:`rgba(255,255,255,0.03)`,border:`1px solid ${c}25`}} className="rounded-lg p-2">
+            <div className="mono" style={{color:'#8899aa',fontSize:'10px'}}>{l}</div>
+            <div className="font-bold mono" style={{color:c,fontSize:'17px'}}>{v}<span style={{color:'#8899aa',fontSize:'9px'}}>{u}</span></div>
+            {spark&&<Sparkline data={spark} color={c}/>}
+          </div>
+        ))}
+      </div>
+
+      {p.spo2_waveform&&(
+        <div className="mb-3 flex items-center gap-3 rounded p-2" style={{background:'rgba(0,10,20,0.5)',border:'1px solid rgba(0,170,255,0.1)'}}>
+          <div><div className="mono text-xs" style={{color:'#8899aa'}}>SpO₂ Wave</div><SpO2Wave data={p.spo2_waveform} o2={p.o2}/></div>
+          <div className="mono text-xs" style={{color:'#8899aa'}}>Simulator<br/><span style={{color:'#00aaff'}}>v1.0</span></div>
+        </div>
+      )}
+
+      <div style={{borderTop:'1px solid rgba(255,255,255,0.06)',paddingTop:'10px',display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:'6px'}}>
+        {can('run_ai')&&<button onClick={()=>onAI(p)} style={{padding:'10px 0',borderRadius:'8px',fontWeight:'700',fontSize:'12px',cursor:'pointer',background:'linear-gradient(135deg,rgba(255,120,0,0.2),rgba(255,68,102,0.2))',color:'#ff7800',border:'1px solid rgba(255,120,0,0.4)'}}>🤖 AI</button>}
+        <button onClick={()=>onSimulate(p)} style={{padding:'10px 0',borderRadius:'8px',fontWeight:'700',fontSize:'12px',cursor:'pointer',background:'rgba(0,255,100,0.12)',color:'#00ff64',border:'1px solid rgba(0,255,100,0.3)'}}>📡 SIM</button>
+        <button onClick={()=>onNotes(p)} style={{padding:'10px 0',borderRadius:'8px',fontWeight:'700',fontSize:'12px',cursor:'pointer',background:'#00ffb4',color:'#030a14',border:'none'}}>📋 NOTES</button>
+        {can('discharge')&&<button onClick={()=>onDischarge(p)} style={{padding:'10px 0',borderRadius:'8px',fontWeight:'700',fontSize:'12px',cursor:'pointer',background:'#ffaa00',color:'#030a14',border:'none'}}>🏥 OUT</button>}
+      </div>
+    </div>
+  );
+};
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+const DEMO_USERS=[
+  {username:'dr.smith',password:'doctor123',label:'Doctor'},
+  {username:'nurse.alex',password:'nurse123',label:'Nurse'},
+  {username:'pharmacist',password:'pharma123',label:'Pharmacist'},
+  {username:'radiologist',password:'radio123',label:'Radiologist'},
+  {username:'admin',password:'admin123',label:'Admin'},
+];
+
+const Login=({onLogin})=>{
+  const[username,setUsername]=useState('');const[password,setPassword]=useState('');
+  const[error,setError]=useState('');const[loading,setLoading]=useState(false);
+  const[serverStatus,setServerStatus]=useState('checking');
+  useEffect(()=>{fetch(`${API}/`,{signal:AbortSignal.timeout(2000)}).then(()=>setServerStatus('online')).catch(()=>setServerStatus('offline'));},[]); 
+  const handleLogin=async()=>{
+    setLoading(true);setError('');
+    try{const res=await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+    const data=await res.json();if(!res.ok)throw new Error(data.error);
+    _token=data.token;_permissions=data.user.permissions||[];onLogin(data.user);}
+    catch(err){setError(err.message||'Login failed.');}setLoading(false);
+  };
+  return(
+    <div className="login-bg min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-md fade-in">
+        <div className="text-center mb-8">
+          <div className="text-5xl mb-3">🧠</div>
+          <h1 className="text-4xl font-bold tracking-widest glow-green" style={{color:'#00ffb4'}}>LIVE SENSE AI</h1>
+          <p className="mono text-sm mt-2" style={{color:'#8899aa'}}>HOSPITAL MONITORING SYSTEM v6.0</p>
+          <div className="mt-3 flex justify-center gap-2 flex-wrap">
+            {[['🔐','JWT'],['📦','SQLite'],['📡','Simulator'],['🔬','FHIR'],['🤖','AI'],['👥','Roles']].map(([icon,label])=>(
+              <span key={label} className="mono text-xs px-2 py-1 rounded" style={{background:'rgba(0,255,180,0.08)',border:'1px solid rgba(0,255,180,0.2)',color:'#00ffb4'}}>{icon} {label}</span>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <div className="w-2 h-2 rounded-full" style={{background:serverStatus==='online'?'#00ffb4':'#ffaa00',boxShadow:serverStatus==='online'?'0 0 6px #00ffb4':'none'}}></div>
+            <span className="mono text-xs" style={{color:'#8899aa'}}>{serverStatus==='online'?'All systems online':'Backend offline — start server.js'}</span>
+          </div>
+        </div>
+        <div className="rounded-2xl p-8" style={{background:'#060f1e',border:'1px solid rgba(0,255,180,0.15)'}}>
+          <div className="mb-2 mono text-xs uppercase tracking-widest" style={{color:'#8899aa'}}>Username</div>
+          <input className="login-input w-full rounded-lg px-4 py-3 mb-4 mono text-sm" placeholder="e.g. dr.smith" value={username} onChange={e=>setUsername(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleLogin()}/>
+          <div className="mb-2 mono text-xs uppercase tracking-widest" style={{color:'#8899aa'}}>Password</div>
+          <input className="login-input w-full rounded-lg px-4 py-3 mb-5 mono text-sm" type="password" placeholder="••••••••" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleLogin()}/>
+          {error&&<div className="text-sm mb-4 text-center mono" style={{color:'#ff4466'}}>{error}</div>}
+          <button className="login-btn w-full py-3 rounded-lg text-sm tracking-widest" onClick={handleLogin} disabled={loading}>{loading?'● AUTHENTICATING...':'→ ENTER SYSTEM'}</button>
+          <div className="mt-5 rounded-lg p-4" style={{background:'rgba(0,255,180,0.04)',border:'1px solid rgba(0,255,180,0.1)'}}>
+            <div className="mono text-xs mb-2" style={{color:'#8899aa'}}>DEMO CREDENTIALS — click to fill</div>
+            <div className="grid grid-cols-2 gap-1">
+              {DEMO_USERS.map(({username:u,password:p,label})=>(
+                <div key={u} onClick={()=>{setUsername(u);setPassword(p);}} className="mono text-xs p-2 rounded cursor-pointer" style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)'}}>
+                  <span className={`px-1 rounded text-xs role-${label}`}>{label}</span><br/>
+                  <span style={{color:'#00ffb4'}}>{u}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+const Dashboard=({user,onLogout})=>{
+  const[patients,setPatients]=useState([]);const[uptime,setUptime]=useState(0);
+  const[ward,setWard]=useState('All');const[soundOn,setSoundOn]=useState(true);
+  const[notesTarget,setNotesTarget]=useState(null);const[dischargeTarget,setDischargeTarget]=useState(null);
+  const[aiTarget,setAITarget]=useState(null);const[showStats,setShowStats]=useState(false);const[showFHIR,setShowFHIR]=useState(false);
+  const[toast,setToast]=useState(null);const prevAlerts=useRef(0);
+
+  const showToast=(msg,type='green')=>{setToast({msg,type});setTimeout(()=>setToast(null),3500);};
+
+  useEffect(()=>{
+    api('GET','/patients').then(d=>{
+      const mapped=d.patients.map(p=>({...p,hr:p.heart_rate||75,bp:p.blood_pressure||120,o2:p.oxygen_saturation||98,temp:p.temperature||37.0,
+        history:{hr:[p.heart_rate||75],bp:[p.blood_pressure||120],o2:[p.oxygen_saturation||98]},ecg_waveform:null,spo2_waveform:null,ecg_pattern:'normal'}));
+      setPatients(mapped);
+      api('GET','/simulator').then(sim=>setPatients(prev=>prev.map(p=>{const s=sim.results.find(r=>r.id===p.id);return s?{...p,hr:s.vitals.hr,bp:s.vitals.bp,o2:s.vitals.o2,temp:s.vitals.temp,ecg_waveform:s.ecg_waveform,spo2_waveform:s.spo2_waveform,ecg_pattern:s.ecg_pattern}:p;}))).catch(()=>{});
+    }).catch(()=>showToast('❌ Could not load patients','red'));
+  },[]);
+
+  useEffect(()=>{
+    const t=setInterval(()=>{
+      setUptime(x=>x+1);
+      if(uptime%3===0){
+        api('GET','/simulator').then(sim=>{
+          setPatients(prev=>{
+            const updated=prev.map(p=>{const s=sim.results.find(r=>r.id===p.id);if(!s)return p;
+              const cap=arr=>[...arr.slice(-14),arr[arr.length-1]];
+              return{...p,hr:s.vitals.hr,bp:s.vitals.bp,o2:s.vitals.o2,temp:s.vitals.temp,ecg_waveform:s.ecg_waveform,spo2_waveform:s.spo2_waveform,ecg_pattern:s.ecg_pattern,
+                history:{hr:cap([...p.history.hr,s.vitals.hr]),bp:cap([...p.history.bp,s.vitals.bp]),o2:cap([...p.history.o2,s.vitals.o2])}};
+            });
+            const newAlerts=updated.filter(isAlert).length;
+            if(soundOn&&newAlerts>prevAlerts.current)playBeep();
+            prevAlerts.current=newAlerts;return updated;
+          });
+        }).catch(()=>{});
+      } else {
+        setPatients(prev=>{
+          const updated=prev.map(p=>({...p,hr:clamp(p.hr+rand(-2,2),45,135),bp:clamp(p.bp+rand(-1,1),90,160),o2:clamp(p.o2+rand(-0.5,0.5),85,100)}));
+          const newAlerts=updated.filter(isAlert).length;
+          if(soundOn&&newAlerts>prevAlerts.current)playBeep();
+          prevAlerts.current=newAlerts;return updated;
+        });
+      }
+    },2000);
+    return()=>clearInterval(t);
+  },[soundOn,uptime]);
+
+  const handleSimulate=async(patient)=>{
+    try{const data=await api('GET',`/simulator/${patient.id}`);
+      setPatients(prev=>prev.map(p=>{if(p.id!==patient.id)return p;
+        const cap=arr=>[...arr.slice(-14),arr[arr.length-1]];
+        return{...p,hr:data.vitals.hr,bp:data.vitals.bp,o2:data.vitals.o2,temp:data.vitals.temp,ecg_waveform:data.ecg_waveform,spo2_waveform:data.spo2_waveform,ecg_pattern:data.ecg_pattern,
+          history:{hr:cap([...p.history.hr,data.vitals.hr]),bp:cap([...p.history.bp,data.vitals.bp]),o2:cap([...p.history.o2,data.vitals.o2])}};
+      }));showToast(`📡 ${patient.name} vitals updated`);}
+    catch(e){showToast('❌ Simulator error','red');}
+  };
+  const handleDischarge=async(patient)=>{
+    try{await api('DELETE',`/patients/${patient.id}`);setPatients(prev=>prev.filter(p=>p.id!==patient.id));showToast(`🏥 ${patient.name} discharged`,'orange');}
+    catch(e){showToast('❌ Discharge failed','red');}
+  };
+  const handleLogout=async()=>{await api('POST','/auth/logout').catch(()=>{});_token=null;_permissions=[];onLogout();};
+
+  const wards=['All',...new Set(patients.map(p=>p.ward))];
+  const filtered=ward==='All'?patients:patients.filter(p=>p.ward===ward);
+  const alertCount=patients.filter(isAlert).length;
+
+  return(
+    <div className="min-h-screen" style={{background:'#030a14'}}>
+      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-3"
+        style={{background:'rgba(3,10,20,0.95)',borderBottom:'1px solid rgba(0,255,180,0.1)',backdropFilter:'blur(8px)'}}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-2xl">🧠</span>
+          <span className="font-bold tracking-widest glow-green" style={{color:'#00ffb4',fontSize:'18px'}}>LIVE SENSE AI</span>
+          <span className="mono text-xs px-2 py-1 rounded" style={{background:'rgba(0,255,180,0.1)',border:'1px solid rgba(0,255,180,0.25)',color:'#00ffb4'}}>v6.0</span>
+          {alertCount>0&&<span className="mono text-xs px-2 py-1 rounded" style={{background:'rgba(255,68,102,0.15)',color:'#ff4466',border:'1px solid #ff446640'}}>{alertCount} ALERT{alertCount>1?'S':''}</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          {can('run_ai')&&<button onClick={()=>patients.length>0&&setAITarget(patients[0])} className="mono text-xs px-3 py-2 rounded" style={{background:'linear-gradient(135deg,rgba(255,120,0,0.15),rgba(255,68,102,0.15))',color:'#ff7800',border:'1px solid rgba(255,120,0,0.3)'}}>🤖 AI</button>}
+          <button onClick={()=>setShowFHIR(true)} className="mono text-xs px-3 py-2 rounded" style={{background:'rgba(0,170,255,0.1)',color:'#00aaff',border:'1px solid rgba(0,170,255,0.3)'}}>🔬 FHIR</button>
+          <button onClick={()=>setShowStats(true)} className="mono text-xs px-3 py-2 rounded" style={{background:'rgba(0,255,100,0.08)',color:'#00ff64',border:'1px solid rgba(0,255,100,0.2)'}}>📊 DB</button>
+          <button onClick={()=>setSoundOn(s=>!s)} className={`mono text-xs px-3 py-2 rounded ${soundOn?'sound-btn-on':'sound-btn-off'}`}>{soundOn?'🔔':'🔕'}</button>
+          <div className="text-right hidden sm:block">
+            <div className="text-sm font-bold" style={{color:'#e0fff8'}}>{user.name}</div>
+            <div className="flex items-center gap-1 justify-end">
+              <span className={`mono text-xs px-1 rounded role-${user.role}`}>{user.role}</span>
+              <span className="mono text-xs" style={{color:'#8899aa'}}>{uptime}s</span>
+            </div>
+          </div>
+          <button onClick={handleLogout} className="mono text-xs px-3 py-2 rounded" style={{background:'rgba(255,255,255,0.05)',color:'#8899aa',border:'1px solid #ffffff15'}}>LOGOUT</button>
+        </div>
+      </div>
+
+      <div className="px-6 pt-4 pb-2 flex items-center gap-2 flex-wrap">
+        <span className="mono text-xs mr-2" style={{color:'#8899aa'}}>WARD:</span>
+        {wards.map(w=>(
+          <button key={w} onClick={()=>setWard(w)} className="px-3 py-1 rounded mono text-xs"
+            style={{background:ward===w?'rgba(0,255,180,0.15)':'rgba(255,255,255,0.04)',color:ward===w?'#00ffb4':'#8899aa',border:ward===w?'1px solid rgba(0,255,180,0.4)':'1px solid rgba(255,255,255,0.08)'}}>
+            {w}</button>
+        ))}
+        <span className="ml-auto mono text-xs" style={{color:'#8899aa'}}>{filtered.length} PATIENTS</span>
+      </div>
+
+      <div className="p-6 grid gap-5" style={{gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))'}}>
+        {filtered.map((p,i)=>(
+          <PatientCard key={p.id} p={p} delay={i*50} onNotes={setNotesTarget} onDischarge={setDischargeTarget} onSimulate={handleSimulate} onAI={setAITarget}/>
+        ))}
+        {filtered.length===0&&patients.length>0&&<div className="col-span-full text-center py-20 mono" style={{color:'#8899aa'}}>No patients in this ward.</div>}
+        {patients.length===0&&<div className="col-span-full text-center py-20 mono" style={{color:'#8899aa'}}>Loading from database...</div>}
+      </div>
+
+      <div className="px-6 pb-6 flex items-center gap-3">
+        <div className="w-2 h-2 rounded-full animate-pulse" style={{background:'#00ffb4',boxShadow:'0 0 6px #00ffb4'}}></div>
+        <span className="mono text-xs" style={{color:'#8899aa'}}>v6.0 · JWT + SQLite + Simulator + FHIR + AI + Multi-Role · {patients.length} patients</span>
+      </div>
+
+      {aiTarget&&<AIDiagnosisModal patient={aiTarget} onClose={()=>setAITarget(null)} showToast={showToast}/>}
+      {notesTarget&&<NotesModal patient={notesTarget} onClose={()=>setNotesTarget(null)} showToast={showToast}/>}
+      {dischargeTarget&&<DischargeModal patient={dischargeTarget} onConfirm={handleDischarge} onClose={()=>setDischargeTarget(null)}/>}
+      {showStats&&<StatsModal onClose={()=>setShowStats(false)}/>}
+      {showFHIR&&<FHIRModal onClose={()=>setShowFHIR(false)} showToast={showToast}/>}
+      {toast&&<div className="toast" style={toast.type==='orange'?{background:'rgba(255,170,0,0.15)',border:'1px solid rgba(255,170,0,0.4)',color:'#ffaa00'}:toast.type==='red'?{background:'rgba(255,68,102,0.15)',border:'1px solid rgba(255,68,102,0.4)',color:'#ff4466'}:{background:'rgba(0,255,180,0.12)',border:'1px solid rgba(0,255,180,0.4)',color:'#00ffb4'}}>{toast.msg}</div>}
+    </div>
+  );
+};
+
+const App=()=>{const[user,setUser]=useState(null);return user?<Dashboard user={user} onLogout={()=>setUser(null)}/>:<Login onLogin={setUser}/>;};
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

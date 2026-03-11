@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#00ffb4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LiveSense AI">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Live Sense AI</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:#030a14;font-family:'Rajdhani',sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:'Share Tech Mono',monospace;}
+  /* Safe area for iPhone notch */
+  .safe-top{padding-top:env(safe-area-inset-top);}
+  .safe-bottom{padding-bottom:env(safe-area-inset-bottom);}
+
+  /* Scanlines */
+  body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,180,0.012) 2px,rgba(0,255,180,0.012) 4px);pointer-events:none;z-index:9999;}
+
+  .glow-green{text-shadow:0 0 8px #00ffb4,0 0 20px #00ffb480;}
+  .card-glow{box-shadow:0 0 0 1px rgba(0,255,180,0.15),0 2px 16px rgba(0,255,180,0.05);}
+  .card-alert{box-shadow:0 0 0 1px rgba(255,68,102,0.7),0 2px 16px rgba(255,68,102,0.25);animation:alertPulse 1.2s infinite;}
+  @keyframes alertPulse{0%,100%{box-shadow:0 0 0 1px rgba(255,68,102,0.6),0 2px 16px rgba(255,68,102,0.2);}50%{box-shadow:0 0 0 2px rgba(255,68,102,0.9),0 2px 24px rgba(255,68,102,0.4);}}
+
+  /* Bottom nav */
+  .bottom-nav{position:fixed;bottom:0;left:0;right:0;background:rgba(3,10,20,0.97);border-top:1px solid rgba(0,255,180,0.12);backdrop-filter:blur(20px);padding-bottom:env(safe-area-inset-bottom);z-index:100;}
+  .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px;cursor:pointer;transition:all 0.2s;border:none;background:none;}
+  .nav-item.active{color:#00ffb4;}
+  .nav-item:not(.active){color:#8899aa;}
+  .nav-label{font-family:'Share Tech Mono',monospace;font-size:9px;margin-top:3px;letter-spacing:0.5px;}
+
+  /* Login */
+  .login-input{background:rgba(0,255,180,0.04);border:1px solid rgba(0,255,180,0.2);color:#e0fff8;outline:none;width:100%;border-radius:12px;padding:14px 16px;font-family:'Share Tech Mono',monospace;font-size:14px;transition:border-color 0.2s;}
+  .login-input:focus{border-color:rgba(0,255,180,0.6);}
+
+  /* Cards */
+  .patient-card{background:#060f1e;border-radius:16px;padding:16px;margin-bottom:12px;}
+
+  /* Modals */
+  .modal-overlay{position:fixed;inset:0;z-index:200;background:rgba(3,10,20,0.92);backdrop-filter:blur(8px);display:flex;flex-direction:column;justify-content:flex-end;}
+  .modal-sheet{background:#060f1e;border-radius:24px 24px 0 0;border-top:1px solid rgba(0,255,180,0.2);padding:20px;max-height:90vh;overflow-y:auto;padding-bottom:calc(20px + env(safe-area-inset-bottom));}
+  .modal-handle{width:40px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 16px;}
+
+  /* Vitals */
+  .vital-box{background:rgba(255,255,255,0.03);border-radius:12px;padding:12px;text-align:center;}
+
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:3px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:#00ffb430;border-radius:2px;}
+
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  .fade-in{animation:fadeIn 0.3s ease both;}
+
+  @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:300;padding:10px 20px;border-radius:20px;font-family:'Share Tech Mono',monospace;font-size:12px;animation:toastIn 0.3s ease;white-space:nowrap;}
+
+  /* Risk colors */
+  .risk-LOW{color:#00ffb4;background:rgba(0,255,180,0.1);border:1px solid rgba(0,255,180,0.3);}
+  .risk-MEDIUM{color:#ffcc00;background:rgba(255,204,0,0.1);border:1px solid rgba(255,204,0,0.3);}
+  .risk-HIGH{color:#ff7800;background:rgba(255,120,0,0.1);border:1px solid rgba(255,120,0,0.3);}
+  .risk-CRITICAL{color:#ff4466;background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.5);animation:alertPulse 1s infinite;}
+
+  .role-Doctor{background:rgba(0,170,255,0.15);border:1px solid rgba(0,170,255,0.4);color:#00aaff;}
+  .role-Nurse{background:rgba(0,255,180,0.12);border:1px solid rgba(0,255,180,0.3);color:#00ffb4;}
+  .role-Pharmacist{background:rgba(204,136,255,0.12);border:1px solid rgba(204,136,255,0.3);color:#cc88ff;}
+  .role-Radiologist{background:rgba(255,204,0,0.1);border:1px solid rgba(255,204,0,0.3);color:#ffcc00;}
+  .role-Admin{background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.3);color:#ff4466;}
+
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{animation:spin 1s linear infinite;display:inline-block;}
+
+  /* ECG */
+  .ecg-bg{background:repeating-linear-gradient(0deg,rgba(0,255,100,0.04) 0px,transparent 1px,transparent 10px),repeating-linear-gradient(90deg,rgba(0,255,100,0.04) 0px,transparent 1px,transparent 10px);}
+  @keyframes ecgScroll{from{stroke-dashoffset:400;}to{stroke-dashoffset:0;}}
+  .ecg-line{stroke-dasharray:400;animation:ecgScroll 2s linear infinite;}
+
+  /* Install banner */
+  .install-banner{background:linear-gradient(135deg,rgba(0,255,180,0.15),rgba(0,200,255,0.15));border:1px solid rgba(0,255,180,0.3);border-radius:12px;padding:12px 16px;margin:0 16px 12px;}
+
+  /* Pull to refresh indicator */
+  .ptr-indicator{text-align:center;padding:10px;font-family:'Share Tech Mono',monospace;font-size:11px;color:#8899aa;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useRef,useCallback}=React;
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+const rand=(a,b)=>Math.random()*(b-a)+a;
+const API='http://192.168.1.126:3001';
+let _token=null,_permissions=[];
+const can=p=>_permissions.includes(p);
+const isAlert=p=>p.hr>100||p.hr<55||p.o2<93||p.bp>140||p.temp>38.5;
+
+const api=async(method,path,body)=>{
+  const res=await fetch(`${API}${path}`,{method,headers:{'Content-Type':'application/json',...(_token?{Authorization:`Bearer ${_token}`}:{})},
+  ...(body?{body:JSON.stringify(body)}:{})});
+  const data=await res.json();
+  if(!res.ok)throw new Error(data.error||'Failed');
+  return data;
+};
+
+const playBeep=()=>{
+  try{const ctx=new(window.AudioContext||window.webkitAudioContext)();
+  [[880,0,0.12],[660,0.16,0.12],[880,0.32,0.18]].forEach(([f,s,d])=>{
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.connect(g);g.connect(ctx.destination);o.frequency.value=f;o.type='sine';
+    g.gain.setValueAtTime(0.18,ctx.currentTime+s);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+s+d);
+    o.start(ctx.currentTime+s);o.stop(ctx.currentTime+s+d+0.05);
+  });}catch(e){}
+};
+
+// ── ECG ───────────────────────────────────────────────────────────────────────
+const ECGWaveform=({data,pattern='normal',width,height=40})=>{
+  if(!data||data.length<2)return null;
+  const w=width||window.innerWidth-64;
+  const min=Math.min(...data),max=Math.max(...data),range=max-min||0.1;
+  const pts=data.map((v,i)=>`${((i/(data.length-1))*w).toFixed(1)},${(height-((v-min)/range)*(height-6)-3).toFixed(1)}`);
+  const c=pattern==='afib'?'#ffaa00':pattern==='tachy'?'#ff4466':'#00ff64';
+  return(<div className="ecg-bg rounded-lg" style={{background:'#020c08'}}>
+    <svg width={w} height={height} style={{display:'block'}}>
+      <polyline points={pts.join(' ')} fill="none" stroke={c} strokeWidth="1.8" strokeLinejoin="round" className="ecg-line"/>
+    </svg>
+  </div>);
+};
+
+const Sparkline=({data,color,width=60,height=20})=>{
+  if(!data||data.length<2)return null;
+  const min=Math.min(...data),max=Math.max(...data),range=max-min||1;
+  const pts=data.map((v,i)=>`${(i/(data.length-1))*width},${height-((v-min)/range)*(height-4)-2}`);
+  return<svg width={width} height={height} style={{overflow:'visible'}}><polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/></svg>;
+};
+
+// ── Install Banner ────────────────────────────────────────────────────────────
+const InstallBanner=({onDismiss})=>{
+  const[deferredPrompt,setDeferredPrompt]=useState(null);
+  useEffect(()=>{
+    window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();setDeferredPrompt(e);});
+  },[]);
+  const install=async()=>{if(deferredPrompt){await deferredPrompt.prompt();onDismiss();}};
+  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
+  return(
+    <div className="install-banner">
+      <div className="flex justify-between items-start">
+        <div>
+          <div className="font-bold text-sm" style={{color:'#00ffb4'}}>📲 Install App</div>
+          <div className="mono text-xs mt-1" style={{color:'#8899aa'}}>
+            {isIOS?'Tap Share → Add to Home Screen':'Add to Home Screen for offline access & alerts'}
+          </div>
+        </div>
+        <div className="flex gap-2 ml-3">
+          {!isIOS&&deferredPrompt&&<button onClick={install} style={{padding:'6px 12px',borderRadius:'8px',background:'#00ffb4',color:'#030a14',fontWeight:'700',fontSize:'12px',border:'none',cursor:'pointer',fontFamily:'Share Tech Mono'}}>INSTALL</button>}
+          <button onClick={onDismiss} style={{padding:'6px 10px',borderRadius:'8px',background:'rgba(255,255,255,0.05)',color:'#8899aa',fontSize:'12px',border:'none',cursor:'pointer'}}>✕</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Patient Detail Sheet ──────────────────────────────────────────────────────
+const PatientSheet=({patient,onClose,showToast,user})=>{
+  const[tab,setTab]=useState('vitals');
+  const[notes,setNotes]=useState([]);
+  const[noteText,setNoteText]=useState('');
+  const[saving,setSaving]=useState(false);
+  const[aiResult,setAIResult]=useState(null);
+  const[aiLoading,setAILoading]=useState(false);
+  const alert=isAlert(patient);
+
+  useEffect(()=>{api('GET',`/patients/${patient.id}/notes`).then(d=>setNotes(d.notes)).catch(()=>{});},[]); 
+
+  const saveNote=async()=>{
+    if(!noteText.trim())return;setSaving(true);
+    try{await api('POST',`/patients/${patient.id}/notes`,{content:noteText});
+      const d=await api('GET',`/patients/${patient.id}/notes`);setNotes(d.notes);setNoteText('');showToast('📋 Note saved');}
+    catch(e){showToast('❌ Failed','red');}setSaving(false);
+  };
+
+  const runAI=async()=>{
+    setAILoading(true);setAIResult(null);
+    try{const d=await api('POST',`/ai/diagnose/${patient.id}`,{hr:Math.round(patient.hr),bp:Math.round(patient.bp),o2:Math.round(patient.o2),temp:patient.temp});
+      setAIResult(d.diagnosis);showToast(`🤖 ${d.diagnosis.risk_level} risk — AI complete`);}
+    catch(e){showToast('❌ AI failed','red');}setAILoading(false);
+  };
+
+  const riskColor={LOW:'#00ffb4',MEDIUM:'#ffcc00',HIGH:'#ff7800',CRITICAL:'#ff4466'};
+
+  return(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-sheet" onClick={e=>e.stopPropagation()}>
+        <div className="modal-handle"/>
+
+        {/* Patient header */}
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <div className="text-xl font-bold" style={{color:'#e0fff8'}}>{patient.name}</div>
+            <div className="mono text-xs mt-1" style={{color:'#8899aa'}}>Room {patient.room} · {patient.ward}</div>
+            <div className="mono text-xs" style={{color:patient.ecg_pattern==='afib'?'#ffaa00':patient.ecg_pattern==='tachy'?'#ff4466':'#8899aa'}}>
+              {patient.condition}{patient.ecg_pattern==='afib'?' · AFib':patient.ecg_pattern==='tachy'?' · Tachycardia':''}
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            {alert&&<div className="mono text-xs px-2 py-1 rounded" style={{background:'rgba(255,68,102,0.15)',color:'#ff4466',border:'1px solid #ff446640'}}>⚠ ALERT</div>}
+            {patient.blood_type&&<div className="mono text-xs px-2 py-1 rounded" style={{background:'rgba(204,136,255,0.1)',color:'#cc88ff'}}>🩸 {patient.blood_type}</div>}
+          </div>
+        </div>
+
+        {/* ECG */}
+        {patient.ecg_waveform&&(
+          <div className="mb-4">
+            <div className="mono text-xs mb-1" style={{color:'#8899aa'}}>
+              ECG — <span style={{color:patient.ecg_pattern==='afib'?'#ffaa00':patient.ecg_pattern==='tachy'?'#ff4466':'#00ff64'}}>
+                {patient.ecg_pattern==='afib'?'Atrial Fibrillation':patient.ecg_pattern==='tachy'?'Tachycardia':'Normal Sinus'}
+              </span>
+            </div>
+            <ECGWaveform data={patient.ecg_waveform} pattern={patient.ecg_pattern}/>
+          </div>
+        )}
+
+        {/* Tab bar */}
+        <div className="flex gap-2 mb-4" style={{borderBottom:'1px solid rgba(255,255,255,0.06)',paddingBottom:'12px'}}>
+          {['vitals','notes',...(can('run_ai')?['ai']:[])].map(t=>(
+            <button key={t} onClick={()=>setTab(t)} style={{padding:'6px 14px',borderRadius:'8px',fontSize:'12px',fontFamily:'Share Tech Mono',cursor:'pointer',
+              background:tab===t?'rgba(0,255,180,0.15)':'rgba(255,255,255,0.04)',
+              color:tab===t?'#00ffb4':'#8899aa',
+              border:tab===t?'1px solid rgba(0,255,180,0.4)':'1px solid rgba(255,255,255,0.08)'}}>
+              {t==='vitals'?'📊 VITALS':t==='notes'?`📋 NOTES (${notes.length})`:'🤖 AI'}
+            </button>
+          ))}
+        </div>
+
+        {/* VITALS TAB */}
+        {tab==='vitals'&&(
+          <div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {[['❤️ Heart Rate',`${Math.round(patient.hr)} bpm`,patient.hr>100||patient.hr<55?'#ff4466':'#00ffb4',patient.history?.hr],
+                ['💉 Blood Pressure',`${Math.round(patient.bp)} mmHg`,patient.bp>140?'#ff4466':'#00aaff',patient.history?.bp],
+                ['🫁 SpO₂',`${Math.round(patient.o2)}%`,patient.o2<93?'#ff4466':'#ffcc00',patient.history?.o2],
+                ['🌡️ Temperature',`${patient.temp?.toFixed(1)}°C`,patient.temp>38.5?'#ff4466':'#cc88ff',null],
+              ].map(([l,v,c,spark])=>(
+                <div key={l} className="vital-box" style={{border:`1px solid ${c}25`}}>
+                  <div className="mono text-xs mb-1" style={{color:'#8899aa'}}>{l}</div>
+                  <div className="font-bold mono text-2xl" style={{color:c}}>{v}</div>
+                  {spark&&<div className="mt-2 flex justify-center"><Sparkline data={spark} color={c} width={80} height={24}/></div>}
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl p-3" style={{background:'rgba(0,255,100,0.05)',border:'1px solid rgba(0,255,100,0.1)'}}>
+              <div className="mono text-xs mb-1" style={{color:'#8899aa'}}>📡 SIMULATOR SOURCE</div>
+              <div className="mono text-xs" style={{color:'#00ff64'}}>LiveSense Medical Device Simulator v1.0</div>
+              <div className="mono text-xs" style={{color:'#8899aa'}}>Condition-based: {patient.condition}</div>
+            </div>
+          </div>
+        )}
+
+        {/* NOTES TAB */}
+        {tab==='notes'&&(
+          <div>
+            {can('add_notes')&&(
+              <div className="mb-4">
+                <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} rows={3}
+                  style={{width:'100%',background:'rgba(0,255,180,0.04)',border:'1px solid rgba(0,255,180,0.2)',color:'#c0ffe8',outline:'none',resize:'none',borderRadius:'12px',padding:'12px',fontFamily:'Share Tech Mono',fontSize:'13px'}}
+                  placeholder="Add clinical notes..."/>
+                <button onClick={saveNote} disabled={saving} style={{width:'100%',marginTop:'8px',padding:'12px',borderRadius:'12px',fontWeight:'700',fontSize:'14px',background:'linear-gradient(135deg,#00ffb4,#00c8ff)',color:'#030a14',border:'none',cursor:'pointer',fontFamily:'Rajdhani'}}>
+                  {saving?'SAVING...':'💾 SAVE NOTE'}</button>
+              </div>
+            )}
+            {notes.length===0?<div className="text-center py-8 mono text-xs" style={{color:'#8899aa'}}>No notes yet.</div>
+              :notes.map(n=>(
+              <div key={n.id} className="rounded-xl p-3 mb-3" style={{background:'rgba(0,255,180,0.04)',border:'1px solid rgba(0,255,180,0.1)'}}>
+                <div className="flex justify-between mb-1">
+                  <span className="mono text-xs font-bold" style={{color:'#00ffb4'}}>{n.author}</span>
+                  <span className="mono text-xs" style={{color:'#8899aa'}}>{new Date(n.created_at).toLocaleTimeString()}</span>
+                </div>
+                <div className="text-sm" style={{color:'#c0ffe8'}}>{n.content}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* AI TAB */}
+        {tab==='ai'&&(
+          <div>
+            {!aiResult&&(
+              <div>
+                <div className="rounded-xl p-4 mb-4" style={{background:'rgba(255,120,0,0.05)',border:'1px solid rgba(255,120,0,0.15)'}}>
+                  <div className="mono text-xs mb-2" style={{color:'#ff7800'}}>🤖 AI CLINICAL ANALYSIS</div>
+                  <div className="mono text-xs" style={{color:'#8899aa'}}>Claude AI will analyze vitals, condition history and notes to provide risk assessment and recommendations.</div>
+                </div>
+                <button onClick={runAI} disabled={aiLoading} style={{width:'100%',padding:'14px',borderRadius:'12px',fontWeight:'700',fontSize:'15px',background:aiLoading?'rgba(255,120,0,0.1)':'linear-gradient(135deg,#ff7800,#ff4466)',color:'#fff',border:'none',cursor:'pointer',fontFamily:'Rajdhani',letterSpacing:'1px'}}>
+                  {aiLoading?<span><span className="spin">⚙</span> ANALYZING...</span>:'🤖 RUN AI DIAGNOSIS'}
+                </button>
+              </div>
+            )}
+            {aiResult&&(
+              <div>
+                {/* Risk banner */}
+                <div className={`rounded-xl p-4 mb-4 risk-${aiResult.risk_level}`}>
+                  <div className="flex justify-between items-center">
+                    <div><div className="mono text-xs opacity-70">RISK LEVEL</div><div className="font-bold text-2xl mono">{aiResult.risk_level}</div></div>
+                    <div className="text-right"><div className="mono text-xs opacity-70">SCORE</div><div className="font-bold text-3xl mono">{aiResult.risk_score}/100</div></div>
+                  </div>
+                  <div className="mt-2 rounded-full h-1.5" style={{background:'rgba(0,0,0,0.3)'}}>
+                    <div className="rounded-full h-1.5" style={{width:`${aiResult.risk_score}%`,background:riskColor[aiResult.risk_level]}}></div>
+                  </div>
+                </div>
+                <div className="rounded-xl p-3 mb-3" style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)'}}>
+                  <div className="mono text-xs mb-1" style={{color:'#8899aa'}}>SUMMARY</div>
+                  <div className="text-sm" style={{color:'#c0ffe8',lineHeight:'1.5'}}>{aiResult.summary}</div>
+                </div>
+                {aiResult.concerns?.length>0&&(
+                  <div className="mb-3">
+                    <div className="mono text-xs mb-2" style={{color:'#ff7800'}}>⚠ CONCERNS</div>
+                    {aiResult.concerns.map((c,i)=>(
+                      <div key={i} className="rounded-lg px-3 py-2 mb-1 mono text-xs" style={{background:'rgba(255,120,0,0.08)',border:'1px solid rgba(255,120,0,0.2)',color:'#ffaa66'}}>→ {c}</div>
+                    ))}
+                  </div>
+                )}
+                {aiResult.recommendations?.length>0&&(
+                  <div className="mb-3">
+                    <div className="mono text-xs mb-2" style={{color:'#00aaff'}}>✓ RECOMMENDATIONS</div>
+                    {aiResult.recommendations.map((r,i)=>(
+                      <div key={i} className="rounded-lg px-3 py-2 mb-1 mono text-xs" style={{background:'rgba(0,170,255,0.06)',border:'1px solid rgba(0,170,255,0.15)',color:'#88ccff'}}>✓ {r}</div>
+                    ))}
+                  </div>
+                )}
+                <button onClick={()=>setAIResult(null)} style={{width:'100%',padding:'12px',borderRadius:'12px',background:'rgba(255,120,0,0.1)',color:'#ff7800',border:'1px solid rgba(255,120,0,0.3)',cursor:'pointer',fontFamily:'Share Tech Mono',fontSize:'12px'}}>
+                  🔄 RUN AGAIN</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Patient Card (Mobile) ─────────────────────────────────────────────────────
+const PatientCard=({p,onClick})=>{
+  const alert=isAlert(p);
+  const ecgColor=p.ecg_pattern==='afib'?'#ffaa00':p.ecg_pattern==='tachy'?'#ff4466':'#00ff64';
+  return(
+    <div className={`patient-card fade-in ${alert?'card-alert':'card-glow'}`} onClick={()=>onClick(p)}>
+      <div className="flex justify-between items-start mb-3">
+        <div>
+          <div className="font-bold text-base" style={{color:'#e0fff8'}}>{p.name}</div>
+          <div className="mono text-xs mt-0.5" style={{color:'#8899aa'}}>Room {p.room} · {p.ward}</div>
+          <div className="mono text-xs" style={{color:p.ecg_pattern==='afib'?'#ffaa00':p.ecg_pattern==='tachy'?'#ff4466':'#8899aa'}}>{p.condition}</div>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          {alert&&<div className="mono text-xs px-2 py-1 rounded" style={{background:'rgba(255,68,102,0.15)',color:'#ff4466',border:'1px solid #ff446640'}}>⚠</div>}
+          {p.blood_type&&<div className="mono text-xs" style={{color:'#cc88ff'}}>🩸{p.blood_type}</div>}
+        </div>
+      </div>
+
+      {/* Mini vitals row */}
+      <div className="grid grid-cols-4 gap-2 mb-3">
+        {[['HR',Math.round(p.hr),'bpm',p.hr>100||p.hr<55?'#ff4466':'#00ffb4'],
+          ['BP',Math.round(p.bp),'',p.bp>140?'#ff4466':'#00aaff'],
+          ['O₂',`${Math.round(p.o2)}%`,'',p.o2<93?'#ff4466':'#ffcc00'],
+          ['°C',p.temp?.toFixed(1),'',p.temp>38.5?'#ff4466':'#cc88ff'],
+        ].map(([l,v,u,c])=>(
+          <div key={l} style={{background:'rgba(255,255,255,0.03)',border:`1px solid ${c}25`,borderRadius:'8px',padding:'8px',textAlign:'center'}}>
+            <div className="mono" style={{color:'#8899aa',fontSize:'9px'}}>{l}</div>
+            <div className="font-bold mono" style={{color:c,fontSize:'15px'}}>{v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Mini ECG */}
+      {p.ecg_waveform&&(
+        <div>
+          <ECGWaveform data={p.ecg_waveform} pattern={p.ecg_pattern} height={32}/>
+          <div className="mono text-xs mt-1 text-right" style={{color:ecgColor,fontSize:'10px'}}>
+            {p.ecg_pattern==='afib'?'AFib':p.ecg_pattern==='tachy'?'Tachy':'NSR'}
+          </div>
+        </div>
+      )}
+
+      <div className="mono text-xs mt-2 text-right" style={{color:'#8899aa',fontSize:'10px'}}>tap for details →</div>
+    </div>
+  );
+};
+
+// ── Screens ───────────────────────────────────────────────────────────────────
+const PatientsScreen=({patients,user,showToast,soundOn})=>{
+  const[selected,setSelected]=useState(null);
+  const[ward,setWard]=useState('All');
+  const alertCount=patients.filter(isAlert).length;
+  const wards=['All',...new Set(patients.map(p=>p.ward))];
+  const filtered=ward==='All'?patients:patients.filter(p=>p.ward===ward);
+  return(
+    <div>
+      {alertCount>0&&(
+        <div className="mx-4 mb-3 rounded-xl p-3 flex items-center gap-3" style={{background:'rgba(255,68,102,0.12)',border:'1px solid rgba(255,68,102,0.4)'}}>
+          <div className="w-2 h-2 rounded-full animate-pulse" style={{background:'#ff4466',boxShadow:'0 0 6px #ff4466'}}></div>
+          <span className="mono text-xs" style={{color:'#ff4466'}}>{alertCount} PATIENT ALERT{alertCount>1?'S':''} — IMMEDIATE ATTENTION REQUIRED</span>
+        </div>
+      )}
+      <div className="flex gap-2 px-4 mb-3 overflow-x-auto pb-1" style={{scrollbarWidth:'none'}}>
+        {wards.map(w=>(
+          <button key={w} onClick={()=>setWard(w)} style={{padding:'6px 12px',borderRadius:'20px',fontSize:'12px',fontFamily:'Share Tech Mono',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,
+            background:ward===w?'rgba(0,255,180,0.15)':'rgba(255,255,255,0.04)',
+            color:ward===w?'#00ffb4':'#8899aa',border:ward===w?'1px solid rgba(0,255,180,0.4)':'1px solid rgba(255,255,255,0.08)'}}>
+            {w}</button>
+        ))}
+      </div>
+      <div className="px-4">
+        {filtered.length===0?<div className="text-center py-16 mono text-sm" style={{color:'#8899aa'}}>No patients in this ward</div>
+          :filtered.map(p=><PatientCard key={p.id} p={p} onClick={setSelected}/>)}
+      </div>
+      {selected&&<PatientSheet patient={selected} onClose={()=>setSelected(null)} showToast={showToast} user={user}/>}
+    </div>
+  );
+};
+
+const AlertsScreen=({patients})=>{
+  const alerts=patients.filter(isAlert);
+  return(
+    <div className="px-4">
+      {alerts.length===0?(
+        <div className="text-center py-20">
+          <div className="text-5xl mb-4">✅</div>
+          <div className="font-bold text-lg" style={{color:'#00ffb4'}}>All Clear</div>
+          <div className="mono text-sm mt-2" style={{color:'#8899aa'}}>No patient alerts at this time</div>
+        </div>
+      ):alerts.map(p=>(
+        <div key={p.id} className="rounded-xl p-4 mb-3" style={{background:'#060f1e',border:'1px solid rgba(255,68,102,0.5)',boxShadow:'0 0 16px rgba(255,68,102,0.15)'}}>
+          <div className="flex justify-between items-start mb-2">
+            <div>
+              <div className="font-bold" style={{color:'#e0fff8'}}>{p.name}</div>
+              <div className="mono text-xs" style={{color:'#8899aa'}}>Room {p.room} · {p.ward}</div>
+            </div>
+            <div className="mono text-xs px-2 py-1 rounded" style={{background:'rgba(255,68,102,0.15)',color:'#ff4466',border:'1px solid #ff446640'}}>⚠ ALERT</div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {p.hr>100&&<div className="mono text-xs p-2 rounded" style={{background:'rgba(255,68,102,0.1)',color:'#ff4466'}}>❤️ HR: {Math.round(p.hr)} bpm (high)</div>}
+            {p.hr<55&&<div className="mono text-xs p-2 rounded" style={{background:'rgba(255,68,102,0.1)',color:'#ff4466'}}>❤️ HR: {Math.round(p.hr)} bpm (low)</div>}
+            {p.bp>140&&<div className="mono text-xs p-2 rounded" style={{background:'rgba(255,68,102,0.1)',color:'#ff4466'}}>💉 BP: {Math.round(p.bp)} mmHg</div>}
+            {p.o2<93&&<div className="mono text-xs p-2 rounded" style={{background:'rgba(255,68,102,0.1)',color:'#ff4466'}}>🫁 O₂: {Math.round(p.o2)}%</div>}
+            {p.temp>38.5&&<div className="mono text-xs p-2 rounded" style={{background:'rgba(255,68,102,0.1)',color:'#ff4466'}}>🌡️ Temp: {p.temp?.toFixed(1)}°C</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const ProfileScreen=({user,uptime,onLogout})=>(
+  <div className="px-4">
+    <div className="rounded-2xl p-5 mb-4" style={{background:'#060f1e',border:'1px solid rgba(0,255,180,0.15)'}}>
+      <div className="text-center mb-4">
+        <div className="text-5xl mb-2">👤</div>
+        <div className="font-bold text-xl" style={{color:'#e0fff8'}}>{user.name}</div>
+        <div className={`mono text-xs px-3 py-1 rounded-full inline-block mt-1 role-${user.role}`}>{user.role}</div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[['Department',user.department||'—'],['Uptime',`${uptime}s`],['Session','Active'],['Auth','JWT 8hr']].map(([k,v])=>(
+          <div key={k} className="rounded-xl p-3" style={{background:'rgba(255,255,255,0.03)'}}>
+            <div className="mono text-xs" style={{color:'#8899aa'}}>{k}</div>
+            <div className="mono text-sm font-bold" style={{color:'#e0fff8'}}>{v}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div className="rounded-2xl p-4 mb-4" style={{background:'#060f1e',border:'1px solid rgba(0,255,180,0.1)'}}>
+      <div className="mono text-xs mb-3" style={{color:'#8899aa'}}>PERMISSIONS</div>
+      <div className="flex flex-wrap gap-2">
+        {(_permissions||[]).map(p=>(
+          <span key={p} className="mono text-xs px-2 py-1 rounded" style={{background:'rgba(0,255,180,0.08)',border:'1px solid rgba(0,255,180,0.2)',color:'#00ffb4'}}>✓ {p}</span>
+        ))}
+      </div>
+    </div>
+
+    <div className="rounded-2xl p-4 mb-4" style={{background:'#060f1e',border:'1px solid rgba(0,170,255,0.1)'}}>
+      <div className="mono text-xs mb-3" style={{color:'#8899aa'}}>SYSTEM INFO</div>
+      {[['Backend','localhost:3001'],['Database','SQLite'],['AI Engine','Claude Sonnet'],['FHIR','HAPI R4'],['Version','v6.0 PWA']].map(([k,v])=>(
+        <div key={k} className="flex justify-between py-2" style={{borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+          <span className="mono text-xs" style={{color:'#8899aa'}}>{k}</span>
+          <span className="mono text-xs" style={{color:'#00ffb4'}}>{v}</span>
+        </div>
+      ))}
+    </div>
+
+    <button onClick={onLogout} style={{width:'100%',padding:'14px',borderRadius:'12px',fontWeight:'700',fontSize:'14px',background:'rgba(255,68,102,0.12)',color:'#ff4466',border:'1px solid rgba(255,68,102,0.3)',cursor:'pointer',fontFamily:'Rajdhani',letterSpacing:'1px'}}>
+      LOGOUT</button>
+  </div>
+);
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+const Login=({onLogin})=>{
+  const[username,setUsername]=useState('');const[password,setPassword]=useState('');
+  const[error,setError]=useState('');const[loading,setLoading]=useState(false);
+  const[serverStatus,setServerStatus]=useState('checking');
+  useEffect(()=>{fetch(`${API}/`,{signal:AbortSignal.timeout(2000)}).then(()=>setServerStatus('online')).catch(()=>setServerStatus('offline'));},[]); 
+  const handleLogin=async()=>{
+    setLoading(true);setError('');
+    try{const res=await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+      const data=await res.json();if(!res.ok)throw new Error(data.error);
+      _token=data.token;_permissions=data.user.permissions||[];onLogin(data.user);}
+    catch(e){setError(e.message||'Login failed.');}setLoading(false);
+  };
+  const DEMO=[['dr.smith','doctor123','Doctor'],['nurse.alex','nurse123','Nurse'],['pharmacist','pharma123','Pharmacist'],['admin','admin123','Admin']];
+  return(
+    <div style={{minHeight:'100vh',background:'radial-gradient(ellipse at 50% 30%,#001a2e 0%,#030a14 70%)',display:'flex',flexDirection:'column',justifyContent:'center',padding:'24px',paddingTop:'env(safe-area-inset-top)'}}>
+      <div className="text-center mb-8 fade-in">
+        <div style={{fontSize:'56px',marginBottom:'12px'}}>🧠</div>
+        <h1 className="glow-green" style={{color:'#00ffb4',fontSize:'28px',fontWeight:'700',letterSpacing:'4px',margin:0}}>LIVE SENSE AI</h1>
+        <p className="mono" style={{color:'#8899aa',fontSize:'11px',marginTop:'6px',letterSpacing:'1px'}}>HOSPITAL MONITORING v6.0 PWA</p>
+        <div style={{marginTop:'12px',display:'flex',justifyContent:'center',alignItems:'center',gap:'8px'}}>
+          <div style={{width:'8px',height:'8px',borderRadius:'50%',background:serverStatus==='online'?'#00ffb4':'#ffaa00',boxShadow:serverStatus==='online'?'0 0 6px #00ffb4':'none'}}></div>
+          <span className="mono" style={{color:'#8899aa',fontSize:'11px'}}>{serverStatus==='online'?'Server online':'Server offline'}</span>
+        </div>
+      </div>
+      <div className="fade-in" style={{animationDelay:'0.1s'}}>
+        <div className="mono" style={{color:'#8899aa',fontSize:'11px',marginBottom:'6px',letterSpacing:'1px'}}>USERNAME</div>
+        <input className="login-input" style={{marginBottom:'14px'}} placeholder="e.g. dr.smith" value={username} onChange={e=>setUsername(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleLogin()}/>
+        <div className="mono" style={{color:'#8899aa',fontSize:'11px',marginBottom:'6px',letterSpacing:'1px'}}>PASSWORD</div>
+        <input className="login-input" style={{marginBottom:'20px'}} type="password" placeholder="••••••••" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleLogin()}/>
+        {error&&<div className="mono text-center" style={{color:'#ff4466',fontSize:'13px',marginBottom:'16px'}}>{error}</div>}
+        <button onClick={handleLogin} disabled={loading} style={{width:'100%',padding:'16px',borderRadius:'14px',fontWeight:'700',fontSize:'16px',letterSpacing:'2px',background:'linear-gradient(135deg,#00ffb4,#00c8ff)',color:'#030a14',border:'none',cursor:'pointer',fontFamily:'Rajdhani'}}>
+          {loading?'AUTHENTICATING...':'→ ENTER SYSTEM'}</button>
+        <div style={{marginTop:'20px',background:'rgba(0,255,180,0.04)',border:'1px solid rgba(0,255,180,0.1)',borderRadius:'14px',padding:'16px'}}>
+          <div className="mono" style={{color:'#8899aa',fontSize:'10px',marginBottom:'10px'}}>TAP TO FILL CREDENTIALS</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
+            {DEMO.map(([u,p,r])=>(
+              <div key={u} onClick={()=>{setUsername(u);setPassword(p);}} style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:'10px',padding:'10px',cursor:'pointer'}}>
+                <div className={`mono text-xs px-1 rounded inline-block mb-1 role-${r}`} style={{fontSize:'10px'}}>{r}</div>
+                <div className="mono" style={{color:'#00ffb4',fontSize:'11px'}}>{u}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── App ───────────────────────────────────────────────────────────────────────
+const App=()=>{
+  const[user,setUser]=useState(null);const[screen,setScreen]=useState('patients');
+  const[patients,setPatients]=useState([]);const[uptime,setUptime]=useState(0);
+  const[soundOn,setSoundOn]=useState(true);const[toast,setToast]=useState(null);
+  const[showInstall,setShowInstall]=useState(true);
+  const prevAlerts=useRef(0);
+
+  const showToast=(msg,type='green')=>{setToast({msg,type});setTimeout(()=>setToast(null),3000);};
+
+  // Register service worker
+  useEffect(()=>{
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.register('sw.js').then(()=>console.log('✅ SW registered')).catch(()=>{});
+    }
+  },[]);
+
+  useEffect(()=>{
+    if(!user)return;
+    api('GET','/patients').then(d=>{
+      const mapped=d.patients.map(p=>({...p,hr:p.heart_rate||75,bp:p.blood_pressure||120,o2:p.oxygen_saturation||98,temp:p.temperature||37.0,
+        history:{hr:[p.heart_rate||75],bp:[p.blood_pressure||120],o2:[p.oxygen_saturation||98]},ecg_waveform:null,spo2_waveform:null,ecg_pattern:'normal'}));
+      setPatients(mapped);
+      api('GET','/simulator').then(sim=>setPatients(prev=>prev.map(p=>{const s=sim.results.find(r=>r.id===p.id);return s?{...p,hr:s.vitals.hr,bp:s.vitals.bp,o2:s.vitals.o2,temp:s.vitals.temp,ecg_waveform:s.ecg_waveform,spo2_waveform:s.spo2_waveform,ecg_pattern:s.ecg_pattern}:p;}))).catch(()=>{});
+    }).catch(()=>showToast('❌ Could not load patients','red'));
+  },[user]);
+
+  useEffect(()=>{
+    if(!user)return;
+    const t=setInterval(()=>{
+      setUptime(x=>x+1);
+      if(uptime%3===0){
+        api('GET','/simulator').then(sim=>{
+          setPatients(prev=>{
+            const updated=prev.map(p=>{const s=sim.results.find(r=>r.id===p.id);if(!s)return p;
+              const cap=arr=>[...arr.slice(-14),arr[arr.length-1]];
+              return{...p,hr:s.vitals.hr,bp:s.vitals.bp,o2:s.vitals.o2,temp:s.vitals.temp,ecg_waveform:s.ecg_waveform,spo2_waveform:s.spo2_waveform,ecg_pattern:s.ecg_pattern,
+                history:{hr:cap([...p.history.hr,s.vitals.hr]),bp:cap([...p.history.bp,s.vitals.bp]),o2:cap([...p.history.o2,s.vitals.o2])}};
+            });
+            const newAlerts=updated.filter(isAlert).length;
+            if(soundOn&&newAlerts>prevAlerts.current)playBeep();
+            prevAlerts.current=newAlerts;return updated;
+          });
+        }).catch(()=>{});
+      }else{
+        setPatients(prev=>{
+          const updated=prev.map(p=>({...p,hr:clamp(p.hr+rand(-2,2),45,135),bp:clamp(p.bp+rand(-1,1),90,160),o2:clamp(p.o2+rand(-0.5,0.5),85,100)}));
+          const newAlerts=updated.filter(isAlert).length;
+          if(soundOn&&newAlerts>prevAlerts.current)playBeep();
+          prevAlerts.current=newAlerts;return updated;
+        });
+      }
+    },2000);
+    return()=>clearInterval(t);
+  },[user,soundOn,uptime]);
+
+  const handleLogout=async()=>{await api('POST','/auth/logout').catch(()=>{});_token=null;_permissions=[];setUser(null);setPatients([]);};
+  if(!user)return<Login onLogin={u=>{setUser(u);}}/>;
+
+  const alertCount=patients.filter(isAlert).length;
+  const NAV=[
+    {id:'patients',icon:'🏥',label:'PATIENTS'},
+    {id:'alerts',icon:'⚠️',label:`ALERTS${alertCount>0?` (${alertCount})`:''}`,alert:alertCount>0},
+    {id:'profile',icon:'👤',label:'PROFILE'},
+  ];
+
+  return(
+    <div style={{minHeight:'100vh',background:'#030a14',paddingBottom:'80px'}}>
+      {/* Top bar */}
+      <div className="safe-top" style={{background:'rgba(3,10,20,0.97)',borderBottom:'1px solid rgba(0,255,180,0.1)',backdropFilter:'blur(20px)',position:'sticky',top:0,zIndex:50}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px'}}>
+          <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+            <span style={{fontSize:'20px'}}>🧠</span>
+            <span className="glow-green font-bold" style={{color:'#00ffb4',fontSize:'16px',letterSpacing:'2px'}}>LIVE SENSE AI</span>
+            {alertCount>0&&<span className="mono" style={{background:'rgba(255,68,102,0.15)',color:'#ff4466',border:'1px solid #ff446640',padding:'2px 6px',borderRadius:'6px',fontSize:'11px'}}>{alertCount}⚠</span>}
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+            <button onClick={()=>setSoundOn(s=>!s)} style={{background:'none',border:'none',fontSize:'18px',cursor:'pointer',opacity:soundOn?1:0.4}}>{soundOn?'🔔':'🔕'}</button>
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{width:'8px',height:'8px',borderRadius:'50%',background:'#00ffb4',boxShadow:'0 0 6px #00ffb4'}}></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Install banner */}
+      {showInstall&&!window.matchMedia('(display-mode: standalone)').matches&&(
+        <div style={{padding:'12px 0 0'}}>
+          <InstallBanner onDismiss={()=>setShowInstall(false)}/>
+        </div>
+      )}
+
+      {/* Screens */}
+      <div style={{paddingTop:'8px'}}>
+        {screen==='patients'&&<PatientsScreen patients={patients} user={user} showToast={showToast} soundOn={soundOn}/>}
+        {screen==='alerts'&&<AlertsScreen patients={patients}/>}
+        {screen==='profile'&&<ProfileScreen user={user} uptime={uptime} onLogout={handleLogout}/>}
+      </div>
+
+      {/* Bottom nav */}
+      <div className="bottom-nav safe-bottom">
+        <div style={{display:'flex'}}>
+          {NAV.map(n=>(
+            <button key={n.id} className={`nav-item ${screen===n.id?'active':''}`} onClick={()=>setScreen(n.id)}>
+              <span style={{fontSize:'22px',position:'relative'}}>
+                {n.icon}
+                {n.alert&&<span style={{position:'absolute',top:'-4px',right:'-4px',width:'8px',height:'8px',borderRadius:'50%',background:'#ff4466',boxShadow:'0 0 6px #ff4466'}}></span>}
+              </span>
+              <span className="nav-label">{n.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Toast */}
+      {toast&&<div className="toast" style={toast.type==='orange'?{background:'rgba(255,170,0,0.9)',color:'#030a14'}:toast.type==='red'?{background:'rgba(255,68,102,0.9)',color:'#fff'}:{background:'rgba(0,255,180,0.9)',color:'#030a14'}}>{toast.msg}</div>}
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

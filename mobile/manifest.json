@@ -1,0 +1,33 @@
+{
+  "name": "Live Sense AI — Hospital Monitor",
+  "short_name": "LiveSense AI",
+  "description": "Real-time hospital patient monitoring with AI diagnosis",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030a14",
+  "theme_color": "#00ffb4",
+  "orientation": "portrait",
+  "categories": ["medical", "health"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ]
+}
