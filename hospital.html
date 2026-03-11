@@ -60,7 +60,7 @@
 const{useState,useEffect,useRef}=React;
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
 const rand=(a,b)=>Math.random()*(b-a)+a;
-const API='http://localhost:3001';
+const API=window.location.hostname==='localhost'?'http://localhost:3001':'https://livesense-ai-production.up.railway.app';
 let _token=null, _permissions=[];
 
 const api=async(method,path,body)=>{
