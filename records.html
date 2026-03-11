@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Sense AI — Medical Records</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#030a14;font-family:'Rajdhani',sans-serif;color:#e0fff8;}
+.mono{font-family:'Share Tech Mono',monospace;}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,180,0.008) 2px,rgba(0,255,180,0.008) 4px);pointer-events:none;z-index:9999;}
+::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-track{background:#030a14;} ::-webkit-scrollbar-thumb{background:#00ffb440;border-radius:2px;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+.fade-in{animation:fadeIn 0.3s ease both;}
+.card{background:#060f1e;border:1px solid rgba(0,255,180,0.15);border-radius:14px;padding:20px;transition:border-color 0.2s;}
+.card:hover{border-color:rgba(0,255,180,0.3);}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.pulse{animation:pulse 2s infinite;}
+.tab-btn{padding:8px 16px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#8899aa;transition:all 0.2s;white-space:nowrap;}
+.tab-btn.active{background:rgba(0,255,180,0.12);color:#00ffb4;border-color:rgba(0,255,180,0.35);}
+.risk-LOW{color:#00ffb4;background:rgba(0,255,180,0.1);border:1px solid rgba(0,255,180,0.3);}
+.risk-MEDIUM{color:#ffcc00;background:rgba(255,204,0,0.1);border:1px solid rgba(255,204,0,0.3);}
+.risk-HIGH{color:#ff7800;background:rgba(255,120,0,0.1);border:1px solid rgba(255,120,0,0.3);}
+.risk-CRITICAL{color:#ff4466;background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.5);}
+.timeline-line{position:absolute;left:19px;top:0;bottom:0;width:1px;background:linear-gradient(to bottom,rgba(0,255,180,0.4),rgba(0,255,180,0.05));}
+.timeline-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useRef,useCallback}=React;
+const API=window.location.hostname==='localhost'?'http://localhost:3001':'https://livesense-ai-production.up.railway.app';
+let _token=null,_user=null;
+
+const api=async(method,path,body)=>{
+  const res=await fetch(`${API}${path}`,{method,headers:{'Content-Type':'application/json',
+    ...(_token?{Authorization:`Bearer ${_token}`}:{})},
+    ...(body?{body:JSON.stringify(body)}:{})});
+  const data=await res.json();
+  if(!res.ok)throw new Error(data.error||'Failed');
+  return data;
+};
+
+// ── Fake but realistic EHR data per patient condition ─────────────────────────
+const EHR_DATA={
+  'Atrial Fibrillation':{
+    medications:[
+      {name:'Warfarin',dose:'5mg',frequency:'Daily',started:'2024-01-15',status:'active',prescriber:'Dr. Smith'},
+      {name:'Metoprolol',dose:'25mg',frequency:'Twice daily',started:'2024-01-15',status:'active',prescriber:'Dr. Smith'},
+      {name:'Digoxin',dose:'0.125mg',frequency:'Daily',started:'2024-02-01',status:'active',prescriber:'Dr. Smith'},
+    ],
+    labs:[
+      {test:'INR',result:'2.4',unit:'ratio',range:'2.0-3.0',status:'normal',date:'2024-03-10'},
+      {test:'Potassium',result:'3.8',unit:'mEq/L',range:'3.5-5.0',status:'normal',date:'2024-03-10'},
+      {test:'BNP',result:'320',unit:'pg/mL',range:'<100',status:'high',date:'2024-03-09'},
+      {test:'Troponin I',result:'0.04',unit:'ng/mL',range:'<0.04',status:'borderline',date:'2024-03-09'},
+      {test:'CBC',result:'Normal',unit:'',range:'—',status:'normal',date:'2024-03-08'},
+    ],
+    allergies:[{substance:'Aspirin',reaction:'Bleeding risk',severity:'Moderate'},{substance:'Penicillin',reaction:'Rash',severity:'Mild'}],
+    history:['Diagnosed with persistent AFib — Jan 2024','Cardioversion attempted, unsuccessful — Feb 2024','Started anticoagulation therapy — Jan 2024','Echocardiogram: EF 45% — Feb 2024'],
+    imaging:[{type:'Echocardiogram',finding:'Reduced EF 45%, mild MR',date:'2024-02-20'},{type:'Chest X-Ray',finding:'Mild cardiomegaly',date:'2024-03-01'}],
+  },
+  'Sepsis':{
+    medications:[
+      {name:'Piperacillin-Tazobactam',dose:'4.5g',frequency:'Every 6h IV',started:'2024-03-08',status:'active',prescriber:'Dr. Johnson'},
+      {name:'Norepinephrine',dose:'0.1 mcg/kg/min',frequency:'Continuous IV',started:'2024-03-08',status:'active',prescriber:'Dr. Johnson'},
+      {name:'Hydrocortisone',dose:'50mg',frequency:'Every 6h',started:'2024-03-09',status:'active',prescriber:'Dr. Johnson'},
+      {name:'Insulin',dose:'Sliding scale',frequency:'Per protocol',started:'2024-03-08',status:'active',prescriber:'Dr. Johnson'},
+    ],
+    labs:[
+      {test:'WBC',result:'18.4',unit:'K/µL',range:'4.5-11.0',status:'high',date:'2024-03-10'},
+      {test:'Lactate',result:'3.8',unit:'mmol/L',range:'<2.0',status:'critical',date:'2024-03-10'},
+      {test:'Procalcitonin',result:'12.4',unit:'ng/mL',range:'<0.5',status:'critical',date:'2024-03-10'},
+      {test:'Creatinine',result:'2.1',unit:'mg/dL',range:'0.6-1.2',status:'high',date:'2024-03-09'},
+      {test:'Blood Culture',result:'E. coli (pending sensitivity)',unit:'',range:'—',status:'abnormal',date:'2024-03-08'},
+    ],
+    allergies:[{substance:'Vancomycin',reaction:'Red man syndrome',severity:'Moderate'}],
+    history:['Admitted via ED with fever, hypotension — Mar 8','Septic shock diagnosed, ICU transfer — Mar 8','Blood cultures drawn, antibiotics started — Mar 8','Vasopressor support initiated — Mar 8','Source: suspected UTI → urosepsis'],
+    imaging:[{type:'CT Abdomen',finding:'Perinephric stranding, no abscess',date:'2024-03-08'},{type:'Chest X-Ray',finding:'Early ARDS changes',date:'2024-03-09'}],
+  },
+  'Hypertension':{
+    medications:[
+      {name:'Amlodipine',dose:'10mg',frequency:'Daily',started:'2023-06-01',status:'active',prescriber:'Dr. Smith'},
+      {name:'Lisinopril',dose:'20mg',frequency:'Daily',started:'2023-06-01',status:'active',prescriber:'Dr. Smith'},
+      {name:'Hydrochlorothiazide',dose:'25mg',frequency:'Daily',started:'2023-08-15',status:'active',prescriber:'Dr. Smith'},
+    ],
+    labs:[
+      {test:'BMP',result:'Normal',unit:'',range:'—',status:'normal',date:'2024-03-09'},
+      {test:'Creatinine',result:'1.1',unit:'mg/dL',range:'0.6-1.2',status:'normal',date:'2024-03-09'},
+      {test:'Potassium',result:'3.6',unit:'mEq/L',range:'3.5-5.0',status:'normal',date:'2024-03-09'},
+      {test:'Urinalysis',result:'Trace protein',unit:'',range:'Negative',status:'borderline',date:'2024-03-08'},
+    ],
+    allergies:[{substance:'Sulfa drugs',reaction:'Rash',severity:'Mild'}],
+    history:['HTN diagnosed — June 2023','BP poorly controlled on monotherapy — Aug 2023','Triple therapy started — Aug 2023','Admitted for hypertensive urgency — Mar 2024'],
+    imaging:[{type:'ECG',finding:'LVH pattern',date:'2024-03-09'},{type:'Renal Ultrasound',finding:'Normal bilateral kidneys',date:'2024-02-15'}],
+  },
+  'Pneumonia':{
+    medications:[
+      {name:'Azithromycin',dose:'500mg',frequency:'Daily IV',started:'2024-03-07',status:'active',prescriber:'Dr. Johnson'},
+      {name:'Ceftriaxone',dose:'1g',frequency:'Daily IV',started:'2024-03-07',status:'active',prescriber:'Dr. Johnson'},
+      {name:'Albuterol',dose:'2.5mg',frequency:'Every 4h nebulizer',started:'2024-03-07',status:'active',prescriber:'Dr. Johnson'},
+    ],
+    labs:[
+      {test:'WBC',result:'14.2',unit:'K/µL',range:'4.5-11.0',status:'high',date:'2024-03-10'},
+      {test:'CRP',result:'85',unit:'mg/L',range:'<10',status:'high',date:'2024-03-10'},
+      {test:'Sputum Culture',result:'S. pneumoniae',unit:'',range:'—',status:'abnormal',date:'2024-03-08'},
+      {test:'O2 Sat (room air)',result:'88%',unit:'',range:'>95%',status:'critical',date:'2024-03-07'},
+    ],
+    allergies:[],
+    history:['Cough and fever x5 days — Mar 7','Admitted with O2 sat 88% on RA — Mar 7','CXR confirmed RLL consolidation — Mar 7','Sputum positive S. pneumoniae — Mar 8'],
+    imaging:[{type:'Chest X-Ray',finding:'RLL consolidation, no effusion',date:'2024-03-07'},{type:'CT Chest',finding:'Lobar pneumonia RLL, no cavitation',date:'2024-03-08'}],
+  },
+  'Migraine':{
+    medications:[
+      {name:'Sumatriptan',dose:'50mg',frequency:'PRN',started:'2023-01-01',status:'active',prescriber:'Dr. Smith'},
+      {name:'Topiramate',dose:'25mg',frequency:'Nightly',started:'2023-03-01',status:'active',prescriber:'Dr. Smith'},
+      {name:'Ketorolac',dose:'30mg',frequency:'Every 6h IV',started:'2024-03-09',status:'active',prescriber:'Dr. Smith'},
+      {name:'Ondansetron',dose:'4mg',frequency:'PRN nausea',started:'2024-03-09',status:'active',prescriber:'Dr. Smith'},
+    ],
+    labs:[
+      {test:'CBC',result:'Normal',unit:'',range:'—',status:'normal',date:'2024-03-09'},
+      {test:'Metabolic Panel',result:'Normal',unit:'',range:'—',status:'normal',date:'2024-03-09'},
+    ],
+    allergies:[{substance:'Codeine',reaction:'Nausea/vomiting',severity:'Mild'}],
+    history:['Migraine with aura — chronic since 2018','Admitted for status migrainosus — Mar 9','Refractory to oral triptans — Mar 9','IV DHE considered, pending neurology consult'],
+    imaging:[{type:'MRI Brain',finding:'No acute intracranial abnormality',date:'2024-03-09'}],
+  },
+  'Stroke Recovery':{
+    medications:[
+      {name:'Aspirin',dose:'81mg',frequency:'Daily',started:'2024-02-01',status:'active',prescriber:'Dr. Smith'},
+      {name:'Atorvastatin',dose:'80mg',frequency:'Nightly',started:'2024-02-01',status:'active',prescriber:'Dr. Smith'},
+      {name:'Amlodipine',dose:'5mg',frequency:'Daily',started:'2024-02-01',status:'active',prescriber:'Dr. Smith'},
+      {name:'Clopidogrel',dose:'75mg',frequency:'Daily',started:'2024-02-15',status:'active',prescriber:'Dr. Smith'},
+    ],
+    labs:[
+      {test:'LDL',result:'62',unit:'mg/dL',range:'<70',status:'normal',date:'2024-03-08'},
+      {test:'HbA1c',result:'5.9',unit:'%',range:'<5.7',status:'borderline',date:'2024-03-08'},
+      {test:'Coagulation',result:'Normal',unit:'',range:'—',status:'normal',date:'2024-03-07'},
+    ],
+    allergies:[],
+    history:['Ischemic stroke — Left MCA — Feb 1','tPA given within 3h window — Feb 1','Right hemiparesis, aphasia — Feb 1','PT/OT/SLP initiated — Feb 3','Transferred to Neurology rehab — Feb 7'],
+    imaging:[{type:'CT Head',finding:'No hemorrhage, early ischemic change L MCA',date:'2024-02-01'},{type:'MRI Brain',finding:'Acute infarct L MCA territory',date:'2024-02-02'},{type:'Carotid Doppler',finding:'70% L ICA stenosis',date:'2024-02-05'}],
+  },
+  'COPD Exacerbation':{
+    medications:[
+      {name:'Tiotropium',dose:'18mcg',frequency:'Daily inhaler',started:'2023-01-01',status:'active',prescriber:'Dr. Johnson'},
+      {name:'Prednisone',dose:'40mg',frequency:'Daily x5 days',started:'2024-03-08',status:'active',prescriber:'Dr. Johnson'},
+      {name:'Albuterol',dose:'2.5mg',frequency:'Every 4h nebulizer',started:'2024-03-08',status:'active',prescriber:'Dr. Johnson'},
+      {name:'Doxycycline',dose:'100mg',frequency:'Twice daily',started:'2024-03-08',status:'active',prescriber:'Dr. Johnson'},
+    ],
+    labs:[
+      {test:'ABG pH',result:'7.34',unit:'',range:'7.35-7.45',status:'borderline',date:'2024-03-10'},
+      {test:'PaCO2',result:'52',unit:'mmHg',range:'35-45',status:'high',date:'2024-03-10'},
+      {test:'PaO2',result:'62',unit:'mmHg',range:'>80',status:'critical',date:'2024-03-10'},
+      {test:'FEV1',result:'38%',unit:'predicted',range:'>70%',status:'critical',date:'2024-03-09'},
+    ],
+    allergies:[{substance:'NSAIDs',reaction:'Bronchospasm',severity:'Severe'}],
+    history:['COPD Gold Stage III — chronic','Smoker 40 pack-years, quit 2020','Admitted with increased dyspnea — Mar 8','SpO2 82% on RA on admission','NIV initiated — Mar 8'],
+    imaging:[{type:'Chest X-Ray',finding:'Hyperinflation, flattened diaphragms, no infiltrate',date:'2024-03-08'}],
+  },
+  'Diabetic Ketoacidosis':{
+    medications:[
+      {name:'Insulin Drip',dose:'0.1 units/kg/hr',frequency:'Continuous IV',started:'2024-03-09',status:'active',prescriber:'Dr. Johnson'},
+      {name:'Normal Saline',dose:'1L/hr x2h then 250mL/hr',frequency:'IV',started:'2024-03-09',status:'active',prescriber:'Dr. Johnson'},
+      {name:'Potassium Chloride',dose:'20mEq/L',frequency:'IV per protocol',started:'2024-03-09',status:'active',prescriber:'Dr. Johnson'},
+    ],
+    labs:[
+      {test:'Glucose',result:'482',unit:'mg/dL',range:'70-100',status:'critical',date:'2024-03-10'},
+      {test:'pH',result:'7.19',unit:'',range:'7.35-7.45',status:'critical',date:'2024-03-10'},
+      {test:'Bicarbonate',result:'10',unit:'mEq/L',range:'22-29',status:'critical',date:'2024-03-10'},
+      {test:'Beta-hydroxybutyrate',result:'4.8',unit:'mmol/L',range:'<0.6',status:'critical',date:'2024-03-10'},
+      {test:'HbA1c',result:'11.4',unit:'%',range:'<5.7',status:'critical',date:'2024-03-09'},
+      {test:'Potassium',result:'5.8',unit:'mEq/L',range:'3.5-5.0',status:'high',date:'2024-03-10'},
+    ],
+    allergies:[],
+    history:['T1DM diagnosed age 12','Missed insulin doses x3 days — trigger','Presented with N/V, polyuria — Mar 9','DKA confirmed, ICU admit — Mar 9','Anion gap closing — Mar 10'],
+    imaging:[{type:'Chest X-Ray',finding:'Clear, no infection as DKA trigger',date:'2024-03-09'}],
+  },
+};
+
+// Default EHR for unknown conditions
+const defaultEHR={
+  medications:[{name:'Acetaminophen',dose:'1000mg',frequency:'Every 6h PRN',started:'2024-03-01',status:'active',prescriber:'Dr. Smith'}],
+  labs:[{test:'CBC',result:'Normal',unit:'',range:'—',status:'normal',date:'2024-03-10'},{test:'BMP',result:'Normal',unit:'',range:'—',status:'normal',date:'2024-03-10'}],
+  allergies:[],history:['Admitted for monitoring'],
+  imaging:[],
+};
+
+const getEHR=condition=>{
+  for(const key of Object.keys(EHR_DATA)){if(condition&&condition.includes(key.split(' ')[0]))return EHR_DATA[key];}
+  return defaultEHR;
+};
+
+// ── Mini Line Chart ───────────────────────────────────────────────────────────
+const SparkLine=({values,color,height=48})=>{
+  const ref=useRef();const chart=useRef();
+  useEffect(()=>{
+    if(!ref.current)return;
+    if(chart.current)chart.current.destroy();
+    const labels=values.map((_,i)=>`${values.length-i}m ago`);
+    chart.current=new Chart(ref.current,{type:'line',data:{labels,datasets:[{data:values,borderColor:color,backgroundColor:color+'15',fill:true,tension:0.4,pointRadius:0,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:400},plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}}}});
+    return()=>chart.current?.destroy();
+  },[values,color]);
+  return<canvas ref={ref} style={{height:height+'px',width:'100%'}}/>;
+};
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+const Login=({onLogin})=>{
+  const[u,setU]=useState('dr.smith');const[p,setP]=useState('doctor123');const[err,setErr]=useState('');const[loading,setLoading]=useState(false);
+  const login=async()=>{
+    setLoading(true);setErr('');
+    try{const res=await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+      const data=await res.json();if(!res.ok)throw new Error(data.error);
+      _token=data.token;_user=data.user;onLogin(data.user);}
+    catch(e){setErr(e.message);}setLoading(false);
+  };
+  return(
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'radial-gradient(ellipse at 50% 40%,#001a2e,#030a14)'}}>
+      <div className="fade-in" style={{width:'100%',maxWidth:'380px',padding:'0 24px'}}>
+        <div style={{textAlign:'center',marginBottom:'32px'}}>
+          <div style={{fontSize:'48px',marginBottom:'12px'}}>📋</div>
+          <h1 className="mono" style={{color:'#00ffb4',fontSize:'22px',letterSpacing:'3px',textShadow:'0 0 20px #00ffb480'}}>MEDICAL RECORDS</h1>
+          <p className="mono" style={{color:'#8899aa',fontSize:'11px',marginTop:'6px'}}>LIVE SENSE AI · EHR SYSTEM</p>
+        </div>
+        <div className="card">
+          <input value={u} onChange={e=>setU(e.target.value)} style={{width:'100%',background:'rgba(0,255,180,0.04)',border:'1px solid rgba(0,255,180,0.2)',color:'#e0fff8',borderRadius:'10px',padding:'12px 16px',fontFamily:'Share Tech Mono',fontSize:'13px',outline:'none',marginBottom:'12px'}} placeholder="Username"/>
+          <input type="password" value={p} onChange={e=>setP(e.target.value)} style={{width:'100%',background:'rgba(0,255,180,0.04)',border:'1px solid rgba(0,255,180,0.2)',color:'#e0fff8',borderRadius:'10px',padding:'12px 16px',fontFamily:'Share Tech Mono',fontSize:'13px',outline:'none',marginBottom:'16px'}} placeholder="Password" onKeyDown={e=>e.key==='Enter'&&login()}/>
+          {err&&<div className="mono" style={{color:'#ff4466',fontSize:'12px',textAlign:'center',marginBottom:'12px'}}>{err}</div>}
+          <button onClick={login} disabled={loading} style={{width:'100%',padding:'12px',borderRadius:'10px',background:'linear-gradient(135deg,#00ffb4,#00c8ff)',color:'#030a14',fontWeight:'700',border:'none',cursor:'pointer',fontFamily:'Share Tech Mono',fontSize:'13px',letterSpacing:'2px'}}>
+            {loading?'LOADING...':'→ VIEW RECORDS'}</button>
+          <div style={{marginTop:'16px',display:'flex',flexDirection:'column',gap:'6px'}}>
+            {[['dr.smith','doctor123','Doctor — Full Access'],['nurse.alex','nurse123','Nurse — Limited'],['admin','admin123','Admin — All Records']].map(([u2,p2,l])=>(
+              <div key={u2} onClick={()=>{setU(u2);setP(p2);}} style={{padding:'8px 12px',borderRadius:'8px',background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)',cursor:'pointer',display:'flex',justifyContent:'space-between'}}>
+                <span className="mono" style={{color:'#00ffb4',fontSize:'11px'}}>{u2}</span>
+                <span className="mono" style={{color:'#8899aa',fontSize:'11px'}}>{l}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Patient List ──────────────────────────────────────────────────────────────
+const PatientList=({patients,onSelect,search,setSearch})=>{
+  const filtered=patients.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||p.condition?.toLowerCase().includes(search.toLowerCase())||p.room?.toLowerCase().includes(search.toLowerCase()));
+  const WARD_COLORS={Cardiology:'#ff4466',ICU:'#ff7800',General:'#00aaff',Neurology:'#cc88ff'};
+  return(
+    <div style={{width:'280px',flexShrink:0,borderRight:'1px solid rgba(0,255,180,0.1)',height:'100%',overflowY:'auto',padding:'16px'}}>
+      <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'12px'}}>PATIENTS ({patients.length})</div>
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search..." style={{width:'100%',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',color:'#e0fff8',borderRadius:'8px',padding:'8px 12px',fontFamily:'Share Tech Mono',fontSize:'12px',outline:'none',marginBottom:'12px'}}/>
+      {filtered.map(p=>{
+        const ehr=getEHR(p.condition);
+        const alertCount=[p.heart_rate>100,p.heart_rate<55,p.oxygen_saturation<93,p.blood_pressure>140,p.temperature>38.5].filter(Boolean).length;
+        return(
+          <div key={p.id} onClick={()=>onSelect(p)} style={{padding:'12px',borderRadius:'10px',marginBottom:'8px',cursor:'pointer',background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)',transition:'all 0.2s'}}
+            onMouseEnter={e=>{e.currentTarget.style.background='rgba(0,255,180,0.06)';e.currentTarget.style.borderColor='rgba(0,255,180,0.3)';}}
+            onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.03)';e.currentTarget.style.borderColor='rgba(255,255,255,0.06)';}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'start'}}>
+              <div style={{fontWeight:'700',fontSize:'14px'}}>{p.name}</div>
+              {alertCount>0&&<span className="mono" style={{fontSize:'9px',padding:'2px 5px',borderRadius:'4px',background:'rgba(255,68,102,0.15)',color:'#ff4466'}}>⚠{alertCount}</span>}
+            </div>
+            <div className="mono" style={{color:'#8899aa',fontSize:'10px',marginTop:'2px'}}>Room {p.room}</div>
+            <div style={{display:'flex',gap:'6px',marginTop:'6px',alignItems:'center'}}>
+              <span style={{fontSize:'9px',padding:'2px 6px',borderRadius:'4px',background:(WARD_COLORS[p.ward]||'#8899aa')+'20',color:WARD_COLORS[p.ward]||'#8899aa',fontFamily:'Share Tech Mono'}}>{p.ward}</span>
+              <span className="mono" style={{color:'#8899aa',fontSize:'10px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.condition}</span>
+            </div>
+            <div className="mono" style={{color:'#8899aa',fontSize:'9px',marginTop:'4px'}}>{ehr.medications.length} meds · {ehr.labs.length} labs</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ── Patient Record ────────────────────────────────────────────────────────────
+const PatientRecord=({patient,notes,aiHistory,user})=>{
+  const[tab,setTab]=useState('overview');
+  const ehr=getEHR(patient.condition);
+  const WARD_COLORS={Cardiology:'#ff4466',ICU:'#ff7800',General:'#00aaff',Neurology:'#cc88ff'};
+  const wc=WARD_COLORS[patient.ward]||'#8899aa';
+  const alertVitals=[];
+  if(patient.heart_rate>100||patient.heart_rate<55)alertVitals.push(`HR ${Math.round(patient.heart_rate)} bpm`);
+  if(patient.blood_pressure>140)alertVitals.push(`BP ${Math.round(patient.blood_pressure)} mmHg`);
+  if(patient.oxygen_saturation<93)alertVitals.push(`O₂ ${Math.round(patient.oxygen_saturation)}%`);
+  if(patient.temperature>38.5)alertVitals.push(`Temp ${patient.temperature?.toFixed(1)}°C`);
+
+  // Generate sparkline data
+  const hrSpark=Array.from({length:12},(_,i)=>Math.round((patient.heart_rate||75)+(Math.sin(i*0.8)*8)+(Math.random()*4-2)));
+  const bpSpark=Array.from({length:12},(_,i)=>Math.round((patient.blood_pressure||120)+(Math.sin(i*0.5)*6)+(Math.random()*3-1.5)));
+  const o2Spark=Array.from({length:12},(_,i)=>Math.round(Math.min(100,(patient.oxygen_saturation||98)+(Math.sin(i)*2)+(Math.random()*1-0.5))));
+
+  const TABS=[{id:'overview',label:'📋 Overview'},{id:'vitals',label:'❤️ Vitals'},{id:'medications',label:'💊 Medications'},{id:'labs',label:'🧪 Lab Results'},{id:'imaging',label:'🩻 Imaging'},{id:'notes',label:`📝 Notes (${notes.length})`},{id:'ai',label:`🤖 AI (${aiHistory.length})`},{id:'timeline',label:'📅 Timeline'}];
+
+  const statusColor={normal:'#00ffb4',high:'#ff4466',low:'#ff7800',critical:'#ff4466',borderline:'#ffcc00',abnormal:'#ff7800'};
+
+  return(
+    <div style={{flex:1,overflowY:'auto',padding:'24px'}}>
+      {/* Patient header */}
+      <div className="card fade-in" style={{marginBottom:'20px',borderColor:wc+'40',background:`linear-gradient(135deg,#060f1e,${wc}08)`}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'start',flexWrap:'wrap',gap:'12px'}}>
+          <div>
+            <div style={{display:'flex',alignItems:'center',gap:'12px',marginBottom:'6px'}}>
+              <h2 style={{fontSize:'28px',fontWeight:'800'}}>{patient.name}</h2>
+              <span className="mono" style={{fontSize:'11px',padding:'3px 8px',borderRadius:'6px',background:wc+'20',color:wc,border:`1px solid ${wc}40`}}>{patient.ward}</span>
+              {alertVitals.length>0&&<span className="mono" style={{fontSize:'10px',padding:'3px 8px',borderRadius:'6px',background:'rgba(255,68,102,0.15)',color:'#ff4466',border:'1px solid rgba(255,68,102,0.4)'}}>⚠ ALERT</span>}
+            </div>
+            <div style={{display:'flex',gap:'20px',flexWrap:'wrap'}}>
+              {[['Room',patient.room],['Blood Type',patient.blood_type||'—'],['Condition',patient.condition],['Status',patient.status?.toUpperCase()||'ACTIVE'],['Allergies',ehr.allergies.length||'None']].map(([l,v])=>(
+                <div key={l}>
+                  <div className="mono" style={{color:'#8899aa',fontSize:'9px',letterSpacing:'1px'}}>{l}</div>
+                  <div style={{fontWeight:'600',fontSize:'14px',color:l==='Status'?(patient.status==='active'?'#00ffb4':'#ff4466'):'#e0fff8'}}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+            <a href="hospital.html" style={{padding:'8px 16px',borderRadius:'8px',background:'rgba(0,255,180,0.1)',color:'#00ffb4',border:'1px solid rgba(0,255,180,0.3)',fontFamily:'Share Tech Mono',fontSize:'11px',textDecoration:'none'}}>🏥 Monitor</a>
+            <a href="analytics.html" style={{padding:'8px 16px',borderRadius:'8px',background:'rgba(255,255,255,0.05)',color:'#8899aa',border:'1px solid rgba(255,255,255,0.1)',fontFamily:'Share Tech Mono',fontSize:'11px',textDecoration:'none'}}>📊 Analytics</a>
+          </div>
+        </div>
+        {alertVitals.length>0&&(
+          <div style={{marginTop:'12px',padding:'10px 14px',borderRadius:'8px',background:'rgba(255,68,102,0.08)',border:'1px solid rgba(255,68,102,0.25)',display:'flex',gap:'12px',flexWrap:'wrap'}}>
+            <span className="mono" style={{color:'#ff4466',fontSize:'11px'}}>⚠ ACTIVE ALERTS:</span>
+            {alertVitals.map(v=><span key={v} className="mono" style={{color:'#ff4466',fontSize:'11px',fontWeight:'700'}}>{v}</span>)}
+          </div>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:'flex',gap:'8px',overflowX:'auto',marginBottom:'20px',paddingBottom:'4px'}}>
+        {TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} className={`tab-btn${tab===t.id?' active':''}`}>{t.label}</button>)}
+      </div>
+
+      {/* ── OVERVIEW ── */}
+      {tab==='overview'&&(
+        <div className="fade-in">
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px',marginBottom:'20px'}}>
+            {[
+              ['❤️ HR',Math.round(patient.heart_rate||75),'bpm',patient.heart_rate>100||patient.heart_rate<55?'#ff4466':'#00ffb4',hrSpark,'#00ffb4'],
+              ['💉 BP',Math.round(patient.blood_pressure||120),'mmHg',patient.blood_pressure>140?'#ff4466':'#00aaff',bpSpark,'#00aaff'],
+              ['🫁 O₂',Math.round(patient.oxygen_saturation||98),'%',patient.oxygen_saturation<93?'#ff4466':'#ffcc00',o2Spark,'#ffcc00'],
+              ['🌡️ Temp',(patient.temperature||37.0).toFixed(1),'°C',patient.temperature>38.5?'#ff4466':'#cc88ff',null,'#cc88ff'],
+            ].map(([l,v,u,c,spark,sc])=>(
+              <div key={l} style={{background:'#060f1e',border:`1px solid ${c}30`,borderRadius:'12px',padding:'14px'}}>
+                <div className="mono" style={{color:'#8899aa',fontSize:'9px',marginBottom:'4px'}}>{l}</div>
+                <div className="mono" style={{color:c,fontSize:'26px',fontWeight:'700'}}>{v}<span style={{fontSize:'12px',color:'#8899aa',marginLeft:'4px'}}>{u}</span></div>
+                {spark&&<div style={{marginTop:'8px'}}><SparkLine values={spark} color={sc} height={36}/></div>}
+              </div>
+            ))}
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px'}}>
+            <div className="card">
+              <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'14px'}}>💊 CURRENT MEDICATIONS ({ehr.medications.length})</div>
+              {ehr.medications.slice(0,4).map((m,i)=>(
+                <div key={i} style={{padding:'10px',marginBottom:'8px',background:'rgba(255,255,255,0.02)',borderRadius:'8px',border:'1px solid rgba(0,255,180,0.08)'}}>
+                  <div style={{fontWeight:'700',fontSize:'13px'}}>{m.name} <span style={{color:'#00ffb4',fontSize:'12px'}}>{m.dose}</span></div>
+                  <div className="mono" style={{color:'#8899aa',fontSize:'10px',marginTop:'2px'}}>{m.frequency} · {m.prescriber}</div>
+                </div>
+              ))}
+              {ehr.medications.length>4&&<div className="mono" style={{color:'#8899aa',fontSize:'10px',textAlign:'center',marginTop:'8px'}}>+{ehr.medications.length-4} more — see Medications tab</div>}
+            </div>
+
+            <div className="card">
+              <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'14px'}}>🧪 RECENT LABS</div>
+              {ehr.labs.slice(0,5).map((l,i)=>(
+                <div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+                  <span style={{fontSize:'13px'}}>{l.test}</span>
+                  <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+                    <span className="mono" style={{color:statusColor[l.status]||'#e0fff8',fontSize:'12px',fontWeight:'700'}}>{l.result} {l.unit}</span>
+                    <span className="mono" style={{fontSize:'9px',padding:'2px 6px',borderRadius:'4px',background:(statusColor[l.status]||'#8899aa')+'20',color:statusColor[l.status]||'#8899aa'}}>{l.status?.toUpperCase()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {ehr.allergies.length>0&&(
+            <div className="card" style={{marginTop:'16px',borderColor:'rgba(255,120,0,0.3)',background:'rgba(255,120,0,0.04)'}}>
+              <div className="mono" style={{color:'#ff7800',fontSize:'10px',letterSpacing:'2px',marginBottom:'12px'}}>⚠ ALLERGIES & ADVERSE REACTIONS</div>
+              <div style={{display:'flex',gap:'12px',flexWrap:'wrap'}}>
+                {ehr.allergies.map((a,i)=>(
+                  <div key={i} style={{padding:'10px 16px',borderRadius:'8px',background:'rgba(255,120,0,0.08)',border:'1px solid rgba(255,120,0,0.3)'}}>
+                    <div style={{fontWeight:'700',color:'#ff7800'}}>{a.substance}</div>
+                    <div className="mono" style={{color:'#8899aa',fontSize:'10px'}}>{a.reaction} · {a.severity}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── VITALS ── */}
+      {tab==='vitals'&&(
+        <div className="fade-in">
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px'}}>
+            {[['❤️ Heart Rate Trend','#00ffb4',hrSpark,'bpm',patient.heart_rate],['💉 Blood Pressure Trend','#00aaff',bpSpark,'mmHg',patient.blood_pressure],['🫁 SpO₂ Trend','#ffcc00',o2Spark,'%',patient.oxygen_saturation]].map(([label,color,data,unit,current])=>(
+              <div key={label} className="card">
+                <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'8px'}}>{label}</div>
+                <div className="mono" style={{color,fontSize:'32px',fontWeight:'700',marginBottom:'12px'}}>{Math.round(current||0)} <span style={{fontSize:'14px',color:'#8899aa'}}>{unit}</span></div>
+                <SparkLine values={data} color={color} height={80}/>
+                <div style={{display:'flex',gap:'16px',marginTop:'8px'}}>
+                  <span className="mono" style={{color:'#8899aa',fontSize:'10px'}}>MIN: <span style={{color}}>{Math.min(...data)}</span></span>
+                  <span className="mono" style={{color:'#8899aa',fontSize:'10px'}}>MAX: <span style={{color}}>{Math.max(...data)}</span></span>
+                  <span className="mono" style={{color:'#8899aa',fontSize:'10px'}}>AVG: <span style={{color}}>{Math.round(data.reduce((a,b)=>a+b,0)/data.length)}</span></span>
+                </div>
+              </div>
+            ))}
+            <div className="card">
+              <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'12px'}}>📊 VITALS SUMMARY</div>
+              {[['Heart Rate',Math.round(patient.heart_rate||75),'bpm',patient.heart_rate>100||patient.heart_rate<55,'60–100'],
+                ['Blood Pressure',Math.round(patient.blood_pressure||120),'mmHg',patient.blood_pressure>140,'<140'],
+                ['SpO₂',Math.round(patient.oxygen_saturation||98),'%',patient.oxygen_saturation<93,'>93%'],
+                ['Temperature',(patient.temperature||37).toFixed(1),'°C',patient.temperature>38.5,'36–37.5'],
+              ].map(([l,v,u,alert,ref])=>(
+                <div key={l} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+                  <div>
+                    <div style={{fontWeight:'600',fontSize:'14px'}}>{l}</div>
+                    <div className="mono" style={{color:'#8899aa',fontSize:'10px'}}>Normal: {ref}</div>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <div className="mono" style={{color:alert?'#ff4466':'#00ffb4',fontSize:'20px',fontWeight:'700'}}>{v} <span style={{fontSize:'11px',color:'#8899aa'}}>{u}</span></div>
+                    <div className="mono" style={{fontSize:'9px',color:alert?'#ff4466':'#00ffb4'}}>{alert?'⚠ ABNORMAL':'✓ NORMAL'}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MEDICATIONS ── */}
+      {tab==='medications'&&(
+        <div className="fade-in">
+          <div className="card">
+            <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>💊 MEDICATION LIST ({ehr.medications.length} active)</div>
+            {ehr.medications.map((m,i)=>(
+              <div key={i} style={{padding:'16px',marginBottom:'12px',background:'rgba(255,255,255,0.02)',borderRadius:'10px',border:'1px solid rgba(0,255,180,0.1)',display:'flex',justifyContent:'space-between',alignItems:'start',flexWrap:'wrap',gap:'8px'}}>
+                <div>
+                  <div style={{fontWeight:'700',fontSize:'16px',marginBottom:'4px'}}>{m.name}</div>
+                  <div style={{display:'flex',gap:'16px',flexWrap:'wrap'}}>
+                    <span className="mono" style={{color:'#00ffb4',fontSize:'12px'}}>💊 {m.dose}</span>
+                    <span className="mono" style={{color:'#8899aa',fontSize:'12px'}}>🕐 {m.frequency}</span>
+                    <span className="mono" style={{color:'#8899aa',fontSize:'12px'}}>👨‍⚕️ {m.prescriber}</span>
+                    <span className="mono" style={{color:'#8899aa',fontSize:'12px'}}>📅 Since {m.started}</span>
+                  </div>
+                </div>
+                <span className="mono" style={{fontSize:'10px',padding:'4px 10px',borderRadius:'6px',background:'rgba(0,255,180,0.1)',color:'#00ffb4',border:'1px solid rgba(0,255,180,0.3)'}}>{m.status?.toUpperCase()}</span>
+              </div>
+            ))}
+            {ehr.allergies.length>0&&(
+              <div style={{marginTop:'16px',padding:'14px',borderRadius:'10px',background:'rgba(255,120,0,0.06)',border:'1px solid rgba(255,120,0,0.25)'}}>
+                <div className="mono" style={{color:'#ff7800',fontSize:'10px',marginBottom:'8px'}}>⚠ ALLERGIES — CHECK BEFORE PRESCRIBING</div>
+                {ehr.allergies.map((a,i)=><div key={i} className="mono" style={{color:'#ff7800',fontSize:'12px',marginBottom:'4px'}}>• {a.substance}: {a.reaction} ({a.severity})</div>)}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── LABS ── */}
+      {tab==='labs'&&(
+        <div className="fade-in">
+          <div className="card">
+            <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>🧪 LABORATORY RESULTS ({ehr.labs.length})</div>
+            <table style={{width:'100%',borderCollapse:'collapse'}}>
+              <thead>
+                <tr>{['TEST','RESULT','UNIT','REFERENCE','STATUS','DATE'].map(h=><th key={h} className="mono" style={{color:'#8899aa',fontSize:'9px',padding:'8px 12px',textAlign:'left',borderBottom:'1px solid rgba(255,255,255,0.06)',letterSpacing:'1px'}}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {ehr.labs.map((l,i)=>{
+                  const c=statusColor[l.status]||'#e0fff8';
+                  return(<tr key={i} style={{borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+                    <td style={{padding:'12px',fontWeight:'600'}}>{l.test}</td>
+                    <td className="mono" style={{padding:'12px',color:c,fontWeight:'700'}}>{l.result}</td>
+                    <td className="mono" style={{padding:'12px',color:'#8899aa',fontSize:'11px'}}>{l.unit}</td>
+                    <td className="mono" style={{padding:'12px',color:'#8899aa',fontSize:'11px'}}>{l.range}</td>
+                    <td style={{padding:'12px'}}><span className="mono" style={{fontSize:'9px',padding:'3px 8px',borderRadius:'4px',background:c+'20',color:c,border:`1px solid ${c}40`}}>{l.status?.toUpperCase()}</span></td>
+                    <td className="mono" style={{padding:'12px',color:'#8899aa',fontSize:'11px'}}>{l.date}</td>
+                  </tr>);
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── IMAGING ── */}
+      {tab==='imaging'&&(
+        <div className="fade-in">
+          {ehr.imaging.length===0?(
+            <div className="card" style={{textAlign:'center',padding:'48px'}}>
+              <div style={{fontSize:'48px',marginBottom:'12px'}}>🩻</div>
+              <div className="mono" style={{color:'#8899aa'}}>No imaging studies recorded</div>
+            </div>
+          ):(
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:'16px'}}>
+              {ehr.imaging.map((img,i)=>(
+                <div key={i} className="card" style={{borderColor:'rgba(0,170,255,0.2)'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'start',marginBottom:'12px'}}>
+                    <div className="mono" style={{color:'#00aaff',fontSize:'12px',fontWeight:'700'}}>{img.type}</div>
+                    <span className="mono" style={{color:'#8899aa',fontSize:'10px'}}>{img.date}</span>
+                  </div>
+                  <div style={{padding:'16px',background:'rgba(0,170,255,0.05)',borderRadius:'8px',border:'1px solid rgba(0,170,255,0.1)'}}>
+                    <div style={{fontSize:'13px',lineHeight:'1.6',color:'#c0ffe8'}}>{img.finding}</div>
+                  </div>
+                  <div className="mono" style={{color:'#8899aa',fontSize:'10px',marginTop:'8px'}}>🩻 Radiology Report</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── NOTES ── */}
+      {tab==='notes'&&(
+        <div className="fade-in">
+          {notes.length===0?(
+            <div className="card" style={{textAlign:'center',padding:'48px'}}>
+              <div style={{fontSize:'48px',marginBottom:'12px'}}>📝</div>
+              <div className="mono" style={{color:'#8899aa'}}>No clinical notes yet. Add notes from the main monitor.</div>
+              <a href="hospital.html" style={{display:'inline-block',marginTop:'16px',padding:'10px 24px',borderRadius:'8px',background:'rgba(0,255,180,0.1)',color:'#00ffb4',border:'1px solid rgba(0,255,180,0.3)',fontFamily:'Share Tech Mono',fontSize:'12px',textDecoration:'none'}}>→ Open Monitor</a>
+            </div>
+          ):(
+            <div className="card">
+              <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>📝 CLINICAL NOTES ({notes.length})</div>
+              {notes.map((n,i)=>(
+                <div key={i} style={{padding:'16px',marginBottom:'12px',background:'rgba(255,255,255,0.02)',borderRadius:'10px',border:'1px solid rgba(204,136,255,0.15)'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:'8px'}}>
+                    <span className="mono" style={{color:'#cc88ff',fontSize:'11px'}}>👨‍⚕️ {n.author_name||n.user_name}</span>
+                    <span className="mono" style={{color:'#8899aa',fontSize:'10px'}}>{new Date(n.created_at).toLocaleString()}</span>
+                  </div>
+                  <div style={{fontSize:'14px',lineHeight:'1.7',color:'#c0ffe8'}}>{n.content}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── AI HISTORY ── */}
+      {tab==='ai'&&(
+        <div className="fade-in">
+          {aiHistory.length===0?(
+            <div className="card" style={{textAlign:'center',padding:'48px'}}>
+              <div style={{fontSize:'48px',marginBottom:'12px'}}>🤖</div>
+              <div className="mono" style={{color:'#8899aa'}}>No AI analyses yet. Click 🤖 AI on the patient card in the monitor.</div>
+            </div>
+          ):(
+            <div>
+              {aiHistory.map((h,i)=>{
+                const d=typeof h.diagnosis==='string'?JSON.parse(h.diagnosis):h.diagnosis;
+                const colors={LOW:'#00ffb4',MEDIUM:'#ffcc00',HIGH:'#ff7800',CRITICAL:'#ff4466'};
+                const c=colors[h.risk_level]||'#8899aa';
+                return(<div key={i} className="card fade-in" style={{marginBottom:'16px',borderColor:c+'30'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'start',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}}>
+                    <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
+                      <span className={`mono risk-${h.risk_level}`} style={{fontSize:'11px',padding:'4px 10px',borderRadius:'6px'}}>{h.risk_level} RISK</span>
+                      <span className="mono" style={{color:c,fontSize:'24px',fontWeight:'800'}}>{h.risk_score}/100</span>
+                    </div>
+                    <span className="mono" style={{color:'#8899aa',fontSize:'11px'}}>{new Date(h.created_at).toLocaleString()}</span>
+                  </div>
+                  <div style={{fontSize:'14px',lineHeight:'1.7',color:'#c0ffe8',marginBottom:'12px'}}>{d?.summary||'—'}</div>
+                  {d?.concerns&&d.concerns.length>0&&(
+                    <div style={{marginBottom:'10px'}}>
+                      <div className="mono" style={{color:'#ff7800',fontSize:'10px',marginBottom:'6px'}}>⚠ CONCERNS</div>
+                      {d.concerns.map((c2,j)=><div key={j} style={{fontSize:'13px',color:'#e0fff8',padding:'4px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>• {c2}</div>)}
+                    </div>
+                  )}
+                  {d?.recommendations&&d.recommendations.length>0&&(
+                    <div>
+                      <div className="mono" style={{color:'#00ffb4',fontSize:'10px',marginBottom:'6px'}}>✓ RECOMMENDATIONS</div>
+                      {d.recommendations.map((r,j)=><div key={j} style={{fontSize:'13px',color:'#c0ffe8',padding:'4px 0'}}>• {r}</div>)}
+                    </div>
+                  )}
+                  {h.requested_by&&<div className="mono" style={{color:'#8899aa',fontSize:'10px',marginTop:'10px'}}>Requested by: {h.requested_by}</div>}
+                </div>);
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TIMELINE ── */}
+      {tab==='timeline'&&(
+        <div className="fade-in">
+          <div className="card">
+            <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'20px'}}>📅 PATIENT TIMELINE</div>
+            <div style={{position:'relative',paddingLeft:'36px'}}>
+              <div className="timeline-line"></div>
+              {[
+                {date:patient.admitted_at?.split('T')[0]||'2024-03-01',event:'Patient Admitted',detail:`Room ${patient.room} · ${patient.ward} Ward`,color:'#00ffb4',icon:'🏥'},
+                ...ehr.history.map((h,i)=>({date:'2024-03-0'+(i+2),event:h.split('—')[0]?.trim(),detail:h.split('—')[1]?.trim()||'',color:'#00aaff',icon:'📋'})),
+                ...ehr.labs.filter(l=>l.status==='critical'||l.status==='high').map(l=>({date:l.date,event:`Lab Alert: ${l.test}`,detail:`Result: ${l.result} ${l.unit} (${l.status})`,color:'#ff4466',icon:'🧪'})),
+                ...ehr.imaging.map(img=>({date:img.date,event:img.type,detail:img.finding,color:'#cc88ff',icon:'🩻'})),
+                ...aiHistory.map(a=>({date:a.created_at?.split('T')[0],event:`AI Analysis: ${a.risk_level} Risk`,detail:`Risk score ${a.risk_score}/100`,color:{LOW:'#00ffb4',MEDIUM:'#ffcc00',HIGH:'#ff7800',CRITICAL:'#ff4466'}[a.risk_level]||'#8899aa',icon:'🤖'})),
+                ...notes.map(n=>({date:n.created_at?.split('T')[0],event:'Clinical Note',detail:n.content?.substring(0,60)+'...',color:'#cc88ff',icon:'📝'})),
+              ].sort((a,b)=>new Date(b.date)-new Date(a.date)).map((item,i)=>(
+                <div key={i} style={{display:'flex',gap:'16px',marginBottom:'20px',position:'relative'}}>
+                  <div className="timeline-dot" style={{background:item.color,boxShadow:`0 0 8px ${item.color}80`,zIndex:1,flexShrink:0}}></div>
+                  <div style={{flex:1,padding:'12px 16px',background:'rgba(255,255,255,0.02)',borderRadius:'10px',border:`1px solid ${item.color}20`}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'start',marginBottom:'4px'}}>
+                      <div style={{fontWeight:'700',fontSize:'14px'}}>{item.icon} {item.event}</div>
+                      <span className="mono" style={{color:'#8899aa',fontSize:'10px',flexShrink:0,marginLeft:'12px'}}>{item.date}</span>
+                    </div>
+                    {item.detail&&<div style={{fontSize:'13px',color:'#8899aa',lineHeight:'1.5'}}>{item.detail}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Main App ──────────────────────────────────────────────────────────────────
+const App=()=>{
+  const[user,setUser]=useState(null);
+  const[patients,setPatients]=useState([]);
+  const[selected,setSelected]=useState(null);
+  const[notes,setNotes]=useState([]);
+  const[aiHistory,setAIHistory]=useState([]);
+  const[search,setSearch]=useState('');
+  const[loading,setLoading]=useState(false);
+
+  const loadPatients=useCallback(async()=>{
+    try{const r=await api('GET','/patients');setPatients(r.patients);if(r.patients.length>0&&!selected)setSelected(r.patients[0]);}
+    catch(e){}
+  },[]);
+
+  useEffect(()=>{if(user)loadPatients();},[user,loadPatients]);
+
+  useEffect(()=>{
+    if(!selected)return;
+    setLoading(true);
+    Promise.all([
+      api('GET',`/patients/${selected.id}/notes`).catch(()=>({notes:[]})),
+      api('GET',`/ai/history/${selected.id}`).catch(()=>({history:[]})),
+    ]).then(([n,a])=>{setNotes(n.notes||[]);setAIHistory(a.history||[]);}).finally(()=>setLoading(false));
+  },[selected]);
+
+  if(!user)return<Login onLogin={u=>{setUser(u);}}/>;
+
+  return(
+    <div style={{height:'100vh',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+      {/* Topbar */}
+      <div style={{flexShrink:0,background:'rgba(3,10,20,0.97)',borderBottom:'1px solid rgba(0,255,180,0.1)',backdropFilter:'blur(12px)',padding:'10px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',zIndex:50}}>
+        <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+          <span style={{fontSize:'18px'}}>📋</span>
+          <span className="mono" style={{color:'#00ffb4',fontSize:'15px',letterSpacing:'3px',fontWeight:'700',textShadow:'0 0 12px #00ffb480'}}>MEDICAL RECORDS</span>
+          <span className="mono" style={{background:'rgba(0,255,180,0.1)',border:'1px solid rgba(0,255,180,0.25)',color:'#00ffb4',padding:'2px 8px',borderRadius:'5px',fontSize:'9px'}}>EHR v1.0</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+          <span className="mono" style={{color:'#8899aa',fontSize:'11px'}}>👤 {user.name}</span>
+          <a href="hospital.html" style={{padding:'6px 14px',borderRadius:'7px',background:'rgba(0,255,180,0.08)',color:'#00ffb4',border:'1px solid rgba(0,255,180,0.25)',fontFamily:'Share Tech Mono',fontSize:'10px',textDecoration:'none'}}>🏥 Monitor</a>
+          <a href="analytics.html" style={{padding:'6px 14px',borderRadius:'7px',background:'rgba(255,255,255,0.04)',color:'#8899aa',border:'1px solid rgba(255,255,255,0.08)',fontFamily:'Share Tech Mono',fontSize:'10px',textDecoration:'none'}}>📊 Analytics</a>
+          <a href="landing.html" style={{padding:'6px 14px',borderRadius:'7px',background:'rgba(255,255,255,0.04)',color:'#8899aa',border:'1px solid rgba(255,255,255,0.08)',fontFamily:'Share Tech Mono',fontSize:'10px',textDecoration:'none'}}>🏠 Home</a>
+          <button onClick={()=>{_token=null;setUser(null);}} style={{padding:'6px 14px',borderRadius:'7px',background:'rgba(255,68,102,0.08)',color:'#ff4466',border:'1px solid rgba(255,68,102,0.25)',fontFamily:'Share Tech Mono',fontSize:'10px',cursor:'pointer'}}>LOGOUT</button>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div style={{flex:1,display:'flex',overflow:'hidden'}}>
+        <PatientList patients={patients} onSelect={p=>{setSelected(p);}} search={search} setSearch={setSearch}/>
+        <div style={{flex:1,overflowY:'auto'}}>
+          {selected?(
+            loading?<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}><div className="mono" style={{color:'#00ffb4',fontSize:'13px',letterSpacing:'2px'}}>⚙ LOADING RECORD...</div></div>
+            :<PatientRecord patient={selected} notes={notes} aiHistory={aiHistory} user={user}/>
+          ):(
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',flexDirection:'column',gap:'12px'}}>
+              <div style={{fontSize:'64px'}}>📋</div>
+              <div className="mono" style={{color:'#8899aa',fontSize:'13px'}}>Select a patient to view their record</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
