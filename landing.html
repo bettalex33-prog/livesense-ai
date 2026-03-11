@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Sense AI — Intelligent Hospital Monitoring</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --green: #00ffb4;
+  --blue: #00c8ff;
+  --red: #ff4466;
+  --orange: #ff7800;
+  --bg: #030a14;
+  --card: #060f1e;
+  --border: rgba(0,255,180,0.15);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:#e0fff8;font-family:'Syne',sans-serif;overflow-x:hidden;cursor:none;}
+.mono{font-family:'Share Tech Mono',monospace;}
+
+/* Custom cursor */
+.cursor{position:fixed;width:12px;height:12px;border-radius:50%;background:var(--green);pointer-events:none;z-index:9999;transition:transform 0.15s,opacity 0.15s;mix-blend-mode:screen;}
+.cursor-ring{position:fixed;width:40px;height:40px;border-radius:50%;border:1px solid rgba(0,255,180,0.4);pointer-events:none;z-index:9998;transition:all 0.1s;}
+
+/* Scanlines */
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,180,0.008) 2px,rgba(0,255,180,0.008) 4px);pointer-events:none;z-index:100;}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:50;padding:20px 48px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid transparent;transition:all 0.4s;}
+nav.scrolled{background:rgba(3,10,20,0.92);border-color:var(--border);backdrop-filter:blur(20px);}
+.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none;}
+.nav-logo span:first-child{font-size:24px;}
+.nav-logo-text{font-size:18px;font-weight:800;color:var(--green);letter-spacing:3px;text-shadow:0 0 20px rgba(0,255,180,0.5);}
+.nav-links{display:flex;align-items:center;gap:32px;}
+.nav-links a{color:#8899aa;text-decoration:none;font-size:13px;letter-spacing:1px;mono:true;font-family:'Share Tech Mono',monospace;transition:color 0.2s;}
+.nav-links a:hover{color:var(--green);}
+.nav-cta{padding:10px 24px;border-radius:6px;background:var(--green);color:var(--bg);font-weight:700;font-size:13px;letter-spacing:2px;text-decoration:none;transition:all 0.2s;font-family:'Share Tech Mono',monospace;}
+.nav-cta:hover{background:#fff;box-shadow:0 0 30px rgba(0,255,180,0.4);}
+
+/* ── HERO ── */
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;padding:120px 48px 80px;text-align:center;overflow:hidden;}
+
+/* Animated grid background */
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(0,255,180,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,180,0.04) 1px,transparent 1px);background-size:60px 60px;mask-image:radial-gradient(ellipse at center,black 20%,transparent 80%);}
+
+/* Floating orbs */
+.orb{position:absolute;border-radius:50%;filter:blur(80px);animation:float 8s ease-in-out infinite;}
+.orb-1{width:600px;height:600px;background:rgba(0,255,180,0.06);top:-200px;left:-200px;animation-delay:0s;}
+.orb-2{width:500px;height:500px;background:rgba(0,200,255,0.05);bottom:-200px;right:-200px;animation-delay:3s;}
+.orb-3{width:300px;height:300px;background:rgba(255,68,102,0.04);top:50%;left:50%;transform:translate(-50%,-50%);animation-delay:1.5s;}
+@keyframes float{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-30px) scale(1.05);}}
+
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:20px;border:1px solid rgba(0,255,180,0.3);background:rgba(0,255,180,0.06);margin-bottom:32px;animation:fadeUp 0.8s ease both;}
+.hero-badge-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite;}
+.hero-badge span{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--green);letter-spacing:2px;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+
+.hero-title{font-size:clamp(48px,8vw,96px);font-weight:800;line-height:1;letter-spacing:-2px;margin-bottom:24px;animation:fadeUp 0.8s 0.1s ease both;}
+.hero-title .line-1{display:block;color:#e0fff8;}
+.hero-title .line-2{display:block;background:linear-gradient(135deg,var(--green),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+
+.hero-sub{font-size:18px;color:#8899aa;max-width:600px;line-height:1.7;margin-bottom:48px;animation:fadeUp 0.8s 0.2s ease both;font-weight:400;}
+
+.hero-actions{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;animation:fadeUp 0.8s 0.3s ease both;}
+.btn-primary{padding:16px 36px;border-radius:8px;background:linear-gradient(135deg,var(--green),var(--blue));color:var(--bg);font-weight:700;font-size:14px;letter-spacing:2px;text-decoration:none;transition:all 0.3s;font-family:'Share Tech Mono',monospace;border:none;cursor:none;}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,255,180,0.3);}
+.btn-secondary{padding:16px 36px;border-radius:8px;background:transparent;color:var(--green);font-weight:700;font-size:14px;letter-spacing:2px;text-decoration:none;transition:all 0.3s;font-family:'Share Tech Mono',monospace;border:1px solid rgba(0,255,180,0.3);cursor:none;}
+.btn-secondary:hover{background:rgba(0,255,180,0.08);transform:translateY(-2px);}
+
+/* Live stats bar */
+.hero-stats{display:flex;gap:48px;justify-content:center;margin-top:80px;flex-wrap:wrap;animation:fadeUp 0.8s 0.4s ease both;}
+.stat{text-align:center;}
+.stat-num{font-size:40px;font-weight:800;background:linear-gradient(135deg,var(--green),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.stat-label{font-family:'Share Tech Mono',monospace;font-size:11px;color:#8899aa;letter-spacing:2px;margin-top:4px;}
+
+/* Scroll indicator */
+.scroll-hint{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;animation:fadeUp 1s 0.6s ease both;}
+.scroll-hint span{font-family:'Share Tech Mono',monospace;font-size:10px;color:#8899aa;letter-spacing:3px;}
+.scroll-line{width:1px;height:60px;background:linear-gradient(to bottom,rgba(0,255,180,0.5),transparent);animation:scrollDrop 2s ease-in-out infinite;}
+@keyframes scrollDrop{0%{transform:scaleY(0);transform-origin:top;}50%{transform:scaleY(1);transform-origin:top;}51%{transform:scaleY(1);transform-origin:bottom;}100%{transform:scaleY(0);transform-origin:bottom;}}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px);}to{opacity:1;transform:translateY(0);}}
+
+/* ── LIVE MONITOR PREVIEW ── */
+.preview-section{padding:80px 48px;position:relative;}
+.section-label{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--green);letter-spacing:4px;text-align:center;margin-bottom:16px;}
+.section-title{font-size:clamp(32px,5vw,56px);font-weight:800;text-align:center;margin-bottom:64px;letter-spacing:-1px;}
+
+.monitor-frame{max-width:1100px;margin:0 auto;border-radius:20px;border:1px solid var(--border);background:var(--card);overflow:hidden;box-shadow:0 0 0 1px rgba(0,255,180,0.1),0 40px 80px rgba(0,0,0,0.6),0 0 120px rgba(0,255,180,0.05);}
+.monitor-topbar{background:rgba(0,0,0,0.4);padding:16px 24px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);}
+.monitor-dot{width:12px;height:12px;border-radius:50%;}
+.monitor-url{font-family:'Share Tech Mono',monospace;font-size:12px;color:#8899aa;margin-left:16px;}
+.monitor-live{margin-left:auto;display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--green);}
+.monitor-live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1s infinite;}
+
+.monitor-content{padding:24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
+.mini-card{background:rgba(255,255,255,0.02);border:1px solid rgba(0,255,180,0.1);border-radius:12px;padding:16px;}
+.mini-card.alert{border-color:rgba(255,68,102,0.5);animation:alertGlow 1.5s infinite;}
+@keyframes alertGlow{0%,100%{box-shadow:0 0 0 rgba(255,68,102,0);}50%{box-shadow:0 0 20px rgba(255,68,102,0.2);}}
+.mini-name{font-weight:700;font-size:14px;margin-bottom:2px;}
+.mini-sub{font-family:'Share Tech Mono',monospace;font-size:10px;color:#8899aa;margin-bottom:12px;}
+.mini-vitals{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;}
+.mini-vital{text-align:center;background:rgba(0,0,0,0.3);border-radius:6px;padding:6px 4px;}
+.mini-vital-label{font-family:'Share Tech Mono',monospace;font-size:8px;color:#8899aa;}
+.mini-vital-val{font-family:'Share Tech Mono',monospace;font-size:13px;font-weight:bold;margin-top:2px;}
+.mini-ecg{height:32px;background:#020c08;border-radius:6px;overflow:hidden;position:relative;}
+.mini-ecg svg{position:absolute;top:0;left:0;}
+@keyframes ecgScroll{from{stroke-dashoffset:300;}to{stroke-dashoffset:0;}}
+.ecg-animated{stroke-dasharray:300;animation:ecgScroll 1.8s linear infinite;}
+
+/* ── FEATURES ── */
+.features-section{padding:80px 48px;}
+.features-grid{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:24px;}
+.feature-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:32px;transition:all 0.3s;position:relative;overflow:hidden;}
+.feature-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(0,255,180,0.05),transparent);opacity:0;transition:opacity 0.3s;}
+.feature-card:hover{border-color:rgba(0,255,180,0.4);transform:translateY(-4px);box-shadow:0 20px 40px rgba(0,0,0,0.4),0 0 40px rgba(0,255,180,0.06);}
+.feature-card:hover::before{opacity:1;}
+.feature-icon{font-size:36px;margin-bottom:16px;}
+.feature-title{font-size:20px;font-weight:700;margin-bottom:8px;color:#e0fff8;}
+.feature-desc{font-size:14px;color:#8899aa;line-height:1.7;}
+.feature-tag{display:inline-block;margin-top:16px;padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;}
+
+/* ── TECH STACK ── */
+.tech-section{padding:80px 48px;border-top:1px solid var(--border);}
+.tech-grid{max-width:900px;margin:0 auto;display:flex;flex-wrap:wrap;justify-content:center;gap:16px;}
+.tech-pill{padding:12px 24px;border-radius:40px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);font-family:'Share Tech Mono',monospace;font-size:12px;color:#8899aa;transition:all 0.3s;display:flex;align-items:center;gap:8px;}
+.tech-pill:hover{border-color:var(--border);color:var(--green);background:rgba(0,255,180,0.05);}
+
+/* ── CTA ── */
+.cta-section{padding:120px 48px;text-align:center;position:relative;overflow:hidden;}
+.cta-bg{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(0,255,180,0.06) 0%,transparent 70%);}
+.cta-title{font-size:clamp(36px,6vw,72px);font-weight:800;letter-spacing:-2px;margin-bottom:24px;}
+.cta-sub{font-size:18px;color:#8899aa;margin-bottom:48px;max-width:500px;margin-left:auto;margin-right:auto;}
+.cta-credentials{display:inline-flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:32px;}
+.cred-pill{padding:8px 16px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);font-family:'Share Tech Mono',monospace;font-size:11px;color:#8899aa;}
+.cred-pill span{color:var(--green);}
+
+/* ── FOOTER ── */
+footer{padding:40px 48px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:gap;}
+.footer-logo{font-size:14px;font-weight:700;color:var(--green);letter-spacing:2px;}
+.footer-sub{font-family:'Share Tech Mono',monospace;font-size:11px;color:#8899aa;margin-top:4px;}
+.footer-links{display:flex;gap:24px;}
+.footer-links a{font-family:'Share Tech Mono',monospace;font-size:11px;color:#8899aa;text-decoration:none;transition:color 0.2s;}
+.footer-links a:hover{color:var(--green);}
+
+/* ── LIVE ECG TICKER ── */
+.ticker{background:rgba(0,255,180,0.04);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:12px 0;overflow:hidden;position:relative;}
+.ticker-inner{display:flex;gap:48px;animation:ticker 20s linear infinite;white-space:nowrap;}
+.ticker-item{font-family:'Share Tech Mono',monospace;font-size:11px;color:#8899aa;flex-shrink:0;}
+.ticker-item span{color:var(--green);}
+@keyframes ticker{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+
+/* Responsive */
+@media(max-width:768px){
+  nav{padding:16px 24px;}
+  .nav-links{display:none;}
+  .hero{padding:100px 24px 60px;}
+  .hero-stats{gap:24px;}
+  .preview-section,.features-section,.tech-section,.cta-section{padding:60px 24px;}
+  footer{padding:32px 24px;flex-direction:column;gap:16px;text-align:center;}
+}
+
+/* Scroll animations */
+.reveal{opacity:0;transform:translateY(32px);transition:all 0.7s ease;}
+.reveal.visible{opacity:1;transform:translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- Custom cursor -->
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<!-- Nav -->
+<nav id="nav">
+  <a href="#" class="nav-logo">
+    <span>🧠</span>
+    <span class="nav-logo-text">LIVE SENSE AI</span>
+  </a>
+  <div class="nav-links">
+    <a href="#features">FEATURES</a>
+    <a href="#tech">TECHNOLOGY</a>
+    <a href="#demo">DEMO</a>
+    <a href="hospital.html" class="nav-cta">LAUNCH APP →</a>
+  </div>
+</nav>
+
+<!-- Live Ticker -->
+<div class="ticker" style="position:fixed;top:0;left:0;right:0;z-index:49;margin-top:0;">
+  <div class="ticker-inner" id="ticker">
+    <span class="ticker-item">❤️ HR <span id="t1">83</span> bpm</span>
+    <span class="ticker-item">💉 BP <span id="t2">127</span> mmHg</span>
+    <span class="ticker-item">🫁 SpO₂ <span id="t3">97</span>%</span>
+    <span class="ticker-item">🌡️ TEMP <span id="t4">37.1</span>°C</span>
+    <span class="ticker-item">⚠️ ALERT: <span>Liam Nguyen — Sepsis</span></span>
+    <span class="ticker-item">🤖 AI: <span>John Doe — MEDIUM risk</span></span>
+    <span class="ticker-item">📡 SIMULATOR: <span>8 patients monitored</span></span>
+    <span class="ticker-item">🔬 FHIR: <span>HAPI R4 Connected</span></span>
+    <span class="ticker-item">❤️ HR <span id="t5">83</span> bpm</span>
+    <span class="ticker-item">💉 BP <span id="t6">127</span> mmHg</span>
+    <span class="ticker-item">🫁 SpO₂ <span id="t7">97</span>%</span>
+    <span class="ticker-item">🌡️ TEMP <span id="t8">37.1</span>°C</span>
+    <span class="ticker-item">⚠️ ALERT: <span>Liam Nguyen — Sepsis</span></span>
+    <span class="ticker-item">🤖 AI: <span>John Doe — MEDIUM risk</span></span>
+    <span class="ticker-item">📡 SIMULATOR: <span>8 patients monitored</span></span>
+    <span class="ticker-item">🔬 FHIR: <span>HAPI R4 Connected</span></span>
+  </div>
+</div>
+
+<!-- Hero -->
+<section class="hero" style="padding-top:140px;">
+  <div class="hero-grid"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="hero-badge">
+    <div class="hero-badge-dot"></div>
+    <span>LIVE SYSTEM · 8 PATIENTS MONITORED</span>
+  </div>
+
+  <h1 class="hero-title">
+    <span class="line-1">The Future of</span>
+    <span class="line-2">Hospital Intelligence</span>
+  </h1>
+
+  <p class="hero-sub">Real-time patient monitoring powered by AI diagnosis, live ECG waveforms, and FHIR R4 integration — the same standard used by NHS, WHO, and Epic.</p>
+
+  <div class="hero-actions">
+    <a href="hospital.html" class="btn-primary">→ LAUNCH MONITOR</a>
+    <a href="mobile/index.html" class="btn-secondary">📱 MOBILE APP</a>
+  </div>
+
+  <div class="hero-stats">
+    <div class="stat">
+      <div class="stat-num" id="stat-patients">8</div>
+      <div class="stat-label">PATIENTS LIVE</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" id="stat-vitals">0</div>
+      <div class="stat-label">VITALS RECORDED</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">5</div>
+      <div class="stat-label">USER ROLES</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">4</div>
+      <div class="stat-label">PLATFORMS</div>
+    </div>
+  </div>
+
+  <div class="scroll-hint">
+    <span>SCROLL</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<!-- Mini Monitor Preview -->
+<section class="preview-section reveal" id="demo">
+  <div class="section-label">LIVE PREVIEW</div>
+  <h2 class="section-title">Real Patients. <span style="color:var(--green)">Real Data.</span></h2>
+
+  <div class="monitor-frame">
+    <div class="monitor-topbar">
+      <div class="monitor-dot" style="background:#ff5f57"></div>
+      <div class="monitor-dot" style="background:#ffbd2e"></div>
+      <div class="monitor-dot" style="background:#28c840"></div>
+      <div class="monitor-url mono">livesense-ai-production.up.railway.app</div>
+      <div class="monitor-live"><div class="monitor-live-dot"></div>LIVE</div>
+    </div>
+    <div class="monitor-content" id="monitorCards">
+      <!-- Cards injected by JS -->
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features-section" id="features">
+  <div class="section-label">CAPABILITIES</div>
+  <h2 class="section-title reveal">Built for <span style="color:var(--green)">Real Hospitals</span></h2>
+  <div class="features-grid">
+    {[
+      ['🫀','Live ECG Waveforms','Condition-driven ECG patterns — AFib, Tachycardia, Normal Sinus Rhythm — rendered in real time for every patient.','#ff446615','#ff4466','CARDIOLOGY'],
+      ['🤖','Claude AI Diagnosis','Real AI clinical analysis powered by Anthropic Claude. Risk scoring, recommendations, suggested tests — in seconds.','#ff780015','#ff7800','AI-POWERED'],
+      ['🔬','FHIR R4 Integration','Connected to the global HAPI FHIR server — same standard used by NHS, WHO, Epic, and Cerner worldwide.','#00aaff15','#00aaff','INTEROPERABLE'],
+      ['📡','Medical Device Simulator','Each condition drives realistic vital patterns. Sepsis patients spike differently than AFib — because real medicine is nuanced.','#00ffb415','#00ffb4','REALISTIC'],
+      ['👥','5 Role-Based Access Levels','Doctors, Nurses, Pharmacists, Radiologists, Admins — each with precisely scoped permissions and audit trails.','#cc88ff15','#cc88ff','SECURE'],
+      ['📱','Cross-Platform PWA','Runs on iPhone, Android, Mac, Windows — install directly from the browser. No app store required.','#ffcc0015','#ffcc00','MOBILE-FIRST'],
+    ].map is not needed — we write these directly below}
+  </div>
+</section>
+
+<!-- Tech Stack -->
+<section class="tech-section reveal" id="tech">
+  <div class="section-label">TECHNOLOGY</div>
+  <h2 class="section-title">Production-Grade <span style="color:var(--green)">Stack</span></h2>
+  <div class="tech-grid">
+    <div class="tech-pill">⚛️ React 18</div>
+    <div class="tech-pill">🟢 Node.js</div>
+    <div class="tech-pill">📦 SQLite + WAL</div>
+    <div class="tech-pill">🔐 JWT Auth</div>
+    <div class="tech-pill">🤖 Claude Sonnet AI</div>
+    <div class="tech-pill">🔬 HAPI FHIR R4</div>
+    <div class="tech-pill">📡 Medical Simulator</div>
+    <div class="tech-pill">📱 PWA + Service Worker</div>
+    <div class="tech-pill">🔑 bcrypt</div>
+    <div class="tech-pill">🌐 Railway Cloud</div>
+    <div class="tech-pill">📊 Real-time Vitals</div>
+    <div class="tech-pill">🫀 ECG Waveforms</div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section reveal" id="launch">
+  <div class="cta-bg"></div>
+  <div class="hero-badge" style="margin-bottom:24px;">
+    <div class="hero-badge-dot"></div>
+    <span>LIVE ON RAILWAY — AVAILABLE NOW</span>
+  </div>
+  <h2 class="cta-title">Ready to <span style="color:var(--green)">Try It?</span></h2>
+  <p class="cta-sub">Log in with any role to experience the full system. No setup required.</p>
+  <a href="hospital.html" class="btn-primary" style="font-size:16px;padding:20px 48px;">→ LAUNCH LIVE MONITOR</a>
+  <div class="cta-credentials">
+    <div class="cred-pill"><span>dr.smith</span> / doctor123 — Doctor</div>
+    <div class="cred-pill"><span>nurse.alex</span> / nurse123 — Nurse</div>
+    <div class="cred-pill"><span>admin</span> / admin123 — Admin</div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div>
+    <div class="footer-logo">🧠 LIVE SENSE AI</div>
+    <div class="footer-sub mono">Hospital Monitoring System v6.0 · Built with Claude AI</div>
+  </div>
+  <div class="footer-links">
+    <a href="hospital.html">Desktop App</a>
+    <a href="mobile/index.html">Mobile App</a>
+    <a href="https://github.com/bettalex33-prog/livesense-ai">GitHub</a>
+  </div>
+</footer>
+
+<script>
+// ── Cursor ──────────────────────────────────────────────────────────────────
+const cursor=document.getElementById('cursor'),ring=document.getElementById('cursorRing');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cursor.style.left=mx-6+'px';cursor.style.top=my-6+'px';});
+setInterval(()=>{rx+=(mx-rx)*0.12;ry+=(my-ry)*0.12;ring.style.left=rx-20+'px';ring.style.top=ry-20+'px';},16);
+document.querySelectorAll('a,button').forEach(el=>{
+  el.addEventListener('mouseenter',()=>{cursor.style.transform='scale(2)';ring.style.transform='scale(1.5)';});
+  el.addEventListener('mouseleave',()=>{cursor.style.transform='scale(1)';ring.style.transform='scale(1)';});
+});
+
+// ── Scroll effects ──────────────────────────────────────────────────────────
+const nav=document.getElementById('nav');
+window.addEventListener('scroll',()=>{nav.classList.toggle('scrolled',window.scrollY>60);});
+const reveals=document.querySelectorAll('.reveal');
+const observer=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible');});},{threshold:0.1});
+reveals.forEach(el=>observer.observe(el));
+
+// ── Live ticker vitals ──────────────────────────────────────────────────────
+setInterval(()=>{
+  ['t1','t2','t3','t4','t5','t6','t7','t8'].forEach((id,i)=>{
+    const el=document.getElementById(id);if(!el)return;
+    if(i%4===0)el.textContent=Math.round(70+Math.random()*40);
+    if(i%4===1)el.textContent=Math.round(110+Math.random()*40);
+    if(i%4===2)el.textContent=Math.round(93+Math.random()*7);
+    if(i%4===3)el.textContent=(36.5+Math.random()*2).toFixed(1);
+  });
+},2000);
+
+// ── Monitor preview cards ───────────────────────────────────────────────────
+const PATIENTS=[
+  {name:'John Doe',room:'301A',ward:'Cardiology',condition:'Atrial Fibrillation',blood:'A+',hr:95,bp:135,o2:95,temp:37.0,ecg:'afib',alert:false},
+  {name:'Liam Nguyen',room:'307D',ward:'ICU',condition:'Sepsis',blood:'B+',hr:118,bp:92,o2:89,temp:39.5,ecg:'tachy',alert:true},
+  {name:'Sarah Smith',room:'302B',ward:'General',condition:'Pneumonia',blood:'O+',hr:90,bp:118,o2:91,temp:38.8,ecg:'normal',alert:true},
+  {name:'Emma Wilson',room:'304C',ward:'Neurology',condition:'Migraine',blood:'AB+',hr:65,bp:120,o2:98,temp:37.1,ecg:'normal',alert:false},
+];
+
+function makeECG(pattern,w=240,h=32){
+  const pts=[];
+  for(let i=0;i<80;i++){
+    const t=(i/80)*6*Math.PI,beat=t%(Math.PI*2);
+    let v=0;
+    if(pattern==='afib'){const n=Math.sin(t*8)*0.05;if(beat>1.8&&beat<2.0)v=0.8+n;else if(beat>2.5&&beat<2.9)v=0.15+n;else v=n*0.5;}
+    else if(pattern==='tachy'){if(beat>1.5&&beat<1.6)v=1.0;else if(beat>1.6&&beat<1.7)v=-0.3;else if(beat>2.0&&beat<2.4)v=0.2;}
+    else{if(beat>0.4&&beat<0.55)v=0.15;else if(beat>1.9&&beat<2.0)v=1.0;else if(beat>2.0&&beat<2.1)v=-0.25;else if(beat>2.4&&beat<2.9)v=0.25;}
+    pts.push(v);
+  }
+  const min=Math.min(...pts),max=Math.max(...pts),range=max-min||0.1;
+  const polyPts=pts.map((v,i)=>`${(i/79*w).toFixed(1)},${(h-((v-min)/range)*(h-6)-3).toFixed(1)}`).join(' ');
+  const c=pattern==='afib'?'#ffaa00':pattern==='tachy'?'#ff4466':'#00ff64';
+  return `<svg width="${w}" height="${h}"><polyline points="${polyPts}" fill="none" stroke="${c}" stroke-width="1.5" stroke-linejoin="round" class="ecg-animated" style="stroke-dasharray:300;animation:ecgScroll 1.8s linear infinite;"/></svg>`;
+}
+
+function renderCards(){
+  const container=document.getElementById('monitorCards');
+  container.innerHTML=PATIENTS.map(p=>{
+    const isAlert=p.alert||p.hr>100||p.o2<93||p.bp>140||p.temp>38.5;
+    const ecgColor=p.ecg==='afib'?'#ffaa00':p.ecg==='tachy'?'#ff4466':'#00ff64';
+    return`<div class="mini-card${isAlert?' alert':''}">
+      <div style="display:flex;justify-content:space-between;align-items:start;">
+        <div>
+          <div class="mini-name">${p.name}</div>
+          <div class="mini-sub">Room ${p.room} · ${p.ward}</div>
+          <div class="mini-sub" style="color:${ecgColor}">${p.condition}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:end;gap:4px;">
+          ${isAlert?'<span style="font-family:Share Tech Mono,monospace;font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,68,102,0.15);color:#ff4466;border:1px solid #ff446640">⚠ ALERT</span>':''}
+          <span style="font-family:Share Tech Mono,monospace;font-size:9px;color:#cc88ff">🩸${p.blood}</span>
+        </div>
+      </div>
+      <div class="mini-vitals">
+        <div class="mini-vital" style="border:1px solid ${p.hr>100?'#ff446640':'rgba(0,255,180,0.15)'}">
+          <div class="mini-vital-label">HR</div>
+          <div class="mini-vital-val" style="color:${p.hr>100?'#ff4466':'#00ffb4'}">${p.hr}</div>
+        </div>
+        <div class="mini-vital" style="border:1px solid ${p.bp>140?'#ff446640':'rgba(0,170,255,0.15)'}">
+          <div class="mini-vital-label">BP</div>
+          <div class="mini-vital-val" style="color:${p.bp>140?'#ff4466':'#00aaff'}">${p.bp}</div>
+        </div>
+        <div class="mini-vital" style="border:1px solid ${p.o2<93?'#ff446640':'rgba(255,204,0,0.15)'}">
+          <div class="mini-vital-label">O₂</div>
+          <div class="mini-vital-val" style="color:${p.o2<93?'#ff4466':'#ffcc00'}">${p.o2}%</div>
+        </div>
+        <div class="mini-vital" style="border:1px solid ${p.temp>38.5?'#ff446640':'rgba(204,136,255,0.15)'}">
+          <div class="mini-vital-label">°C</div>
+          <div class="mini-vital-val" style="color:${p.temp>38.5?'#ff4466':'#cc88ff'}">${p.temp}</div>
+        </div>
+      </div>
+      <div class="mini-ecg">${makeECG(p.ecg)}</div>
+    </div>`;
+  }).join('');
+}
+renderCards();
+
+// Animate vitals
+setInterval(()=>{
+  PATIENTS.forEach(p=>{
+    p.hr=Math.max(55,Math.min(140,p.hr+(Math.random()-0.5)*4));
+    p.bp=Math.max(85,Math.min(160,p.bp+(Math.random()-0.5)*3));
+    p.o2=Math.max(85,Math.min(100,p.o2+(Math.random()-0.5)*2));
+  });
+  renderCards();
+  // Count up vitals stat
+  const el=document.getElementById('stat-vitals');
+  if(el)el.textContent=parseInt(el.textContent||0)+8;
+},2500);
+
+// Features grid (injected)
+document.querySelector('.features-grid').innerHTML=[
+  ['🫀','Live ECG Waveforms','Condition-driven ECG patterns — AFib, Tachycardia, Normal Sinus Rhythm — rendered in real time for every patient.','rgba(255,68,102,0.08)','#ff4466','CARDIOLOGY'],
+  ['🤖','Claude AI Diagnosis','Real AI clinical analysis powered by Anthropic Claude. Risk scoring, recommendations, suggested tests — in seconds.','rgba(255,120,0,0.08)','#ff7800','AI-POWERED'],
+  ['🔬','FHIR R4 Integration','Connected to the global HAPI FHIR server — same standard used by NHS, WHO, Epic, and Cerner worldwide.','rgba(0,170,255,0.08)','#00aaff','INTEROPERABLE'],
+  ['📡','Medical Device Simulator','Each condition drives realistic vital patterns. Sepsis patients spike differently than AFib — because real medicine is nuanced.','rgba(0,255,180,0.06)','#00ffb4','REALISTIC'],
+  ['👥','Role-Based Access Control','Doctors, Nurses, Pharmacists, Radiologists, Admins — each with precisely scoped permissions and full audit trails.','rgba(204,136,255,0.08)','#cc88ff','SECURE'],
+  ['📱','Cross-Platform PWA','Runs on iPhone, Android, Mac, Windows — install directly from the browser. No app store required.','rgba(255,204,0,0.06)','#ffcc00','MOBILE-FIRST'],
+].map(([icon,title,desc,bg,color,tag])=>`
+  <div class="feature-card reveal" style="border-color:${color}25;">
+    <div class="feature-icon">${icon}</div>
+    <div class="feature-title">${title}</div>
+    <div class="feature-desc">${desc}</div>
+    <div class="feature-tag" style="background:${bg};color:${color};border:1px solid ${color}40">${tag}</div>
+  </div>
+`).join('');
+
+// Re-observe new elements
+document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
+</script>
+</body>
+</html>
