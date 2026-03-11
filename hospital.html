@@ -495,7 +495,7 @@ const PatientCard=({p,delay,onNotes,onDischarge,onSimulate,onAI})=>{
         {can('run_ai')&&<button onClick={()=>onAI(p)} style={{padding:'10px 0',borderRadius:'8px',fontWeight:'700',fontSize:'12px',cursor:'pointer',background:'linear-gradient(135deg,rgba(255,120,0,0.2),rgba(255,68,102,0.2))',color:'#ff7800',border:'1px solid rgba(255,120,0,0.4)'}}>🤖 AI</button>}
         <button onClick={()=>onSimulate(p)} style={{padding:'10px 0',borderRadius:'8px',fontWeight:'700',fontSize:'12px',cursor:'pointer',background:'rgba(0,255,100,0.12)',color:'#00ff64',border:'1px solid rgba(0,255,100,0.3)'}}>📡 SIM</button>
         <button onClick={()=>onNotes(p)} style={{padding:'10px 0',borderRadius:'8px',fontWeight:'700',fontSize:'12px',cursor:'pointer',background:'#00ffb4',color:'#030a14',border:'none'}}>📋 NOTES</button>
-        {can('discharge')&&<button onClick={()=>onDischarge(p)} style={{padding:'10px 0',borderRadius:'8px',fontWeight:'700',fontSize:'12px',cursor:'pointer',background:'#ffaa00',color:'#030a14',border:'none'}}>🏥 OUT</button>}
+        {can('discharge')&&<button onClick={()=>onDischarge(p)} style={{padding:'10px 0',borderRadius:'8px',fontWeight:'700',fontSize:'12px',cursor:'pointer',background:'#ffaa00',color:'#030a14',border:'none'}}>🏥 OUT</button> <button onclick="window.open('records.html','_blank')" style="padding:6px 10px;border-radius:6px;background:rgba(204,136,255,0.15);color:#cc88ff;border:1px solid rgba(204,136,255,0.3);cursor:pointer;font-size:11px">📋 REC</button>}
       </div>
     </div>
   );
