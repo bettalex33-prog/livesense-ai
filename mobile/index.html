@@ -98,7 +98,7 @@
 const{useState,useEffect,useRef,useCallback}=React;
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
 const rand=(a,b)=>Math.random()*(b-a)+a;
-const API='http://192.168.1.126:3001';
+const API='https://livesense-ai-production.up.railway.app';
 let _token=null,_permissions=[];
 const can=p=>_permissions.includes(p);
 const isAlert=p=>p.hr>100||p.hr<55||p.o2<93||p.bp>140||p.temp>38.5;
