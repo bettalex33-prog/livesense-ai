@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Sense AI — Analytics</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#030a14;font-family:'Rajdhani',sans-serif;color:#e0fff8;}
+  .mono{font-family:'Share Tech Mono',monospace;}
+  body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,180,0.012) 2px,rgba(0,255,180,0.012) 4px);pointer-events:none;z-index:9999;}
+  ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-track{background:#030a14;} ::-webkit-scrollbar-thumb{background:#00ffb440;border-radius:2px;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+  .fade-in{animation:fadeIn 0.4s ease both;}
+  .card{background:#060f1e;border:1px solid rgba(0,255,180,0.15);border-radius:16px;padding:24px;}
+  .card:hover{border-color:rgba(0,255,180,0.3);box-shadow:0 4px 32px rgba(0,255,180,0.06);}
+  .stat-card{background:#060f1e;border-radius:16px;padding:20px;transition:all 0.3s;}
+  .glow-green{text-shadow:0 0 8px #00ffb4,0 0 20px #00ffb480;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+  .pulse{animation:pulse 2s infinite;}
+  .risk-LOW{color:#00ffb4;background:rgba(0,255,180,0.1);border:1px solid rgba(0,255,180,0.3);}
+  .risk-MEDIUM{color:#ffcc00;background:rgba(255,204,0,0.1);border:1px solid rgba(255,204,0,0.3);}
+  .risk-HIGH{color:#ff7800;background:rgba(255,120,0,0.1);border:1px solid rgba(255,120,0,0.3);}
+  .risk-CRITICAL{color:#ff4466;background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.5);}
+  canvas{max-width:100%;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useRef,useCallback}=React;
+const API='http://localhost:3001';
+let _token=null;
+
+const api=async(method,path,body)=>{
+  const res=await fetch(`${API}${path}`,{method,headers:{'Content-Type':'application/json',...(_token?{Authorization:`Bearer ${_token}`}:{})},
+  ...(body?{body:JSON.stringify(body)}:{})});
+  const data=await res.json();
+  if(!res.ok)throw new Error(data.error||'Failed');
+  return data;
+};
+
+// ── Chart helpers ─────────────────────────────────────────────────────────────
+const CHART_DEFAULTS = {
+  responsive:true,
+  maintainAspectRatio:false,
+  plugins:{legend:{display:false},tooltip:{backgroundColor:'#060f1e',borderColor:'rgba(0,255,180,0.3)',borderWidth:1,titleColor:'#00ffb4',bodyColor:'#e0fff8',padding:12,titleFont:{family:'Share Tech Mono'},bodyFont:{family:'Share Tech Mono'}}},
+  scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8899aa',font:{family:'Share Tech Mono',size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8899aa',font:{family:'Share Tech Mono',size:10}}}},
+};
+
+// ── Line Chart ────────────────────────────────────────────────────────────────
+const LineChart=({data,color,height=120})=>{
+  const ref=useRef();const chart=useRef();
+  useEffect(()=>{
+    if(!ref.current||!data)return;
+    if(chart.current)chart.current.destroy();
+    chart.current=new Chart(ref.current,{type:'line',data:{
+      labels:data.labels,
+      datasets:[{data:data.values,borderColor:color,backgroundColor:color+'15',fill:true,tension:0.4,pointRadius:0,borderWidth:2}]
+    },options:{...CHART_DEFAULTS,animation:{duration:600}}});
+    return()=>chart.current?.destroy();
+  },[data,color]);
+  return<canvas ref={ref} style={{height:height+'px'}}/>;
+};
+
+// ── Bar Chart ─────────────────────────────────────────────────────────────────
+const BarChart=({data,colors,height=140})=>{
+  const ref=useRef();const chart=useRef();
+  useEffect(()=>{
+    if(!ref.current||!data)return;
+    if(chart.current)chart.current.destroy();
+    chart.current=new Chart(ref.current,{type:'bar',data:{
+      labels:data.labels,
+      datasets:[{data:data.values,backgroundColor:colors||data.labels.map((_,i)=>['#00ffb4','#00aaff','#ff7800','#cc88ff'][i%4]+'aa'),borderRadius:6,borderSkipped:false}]
+    },options:{...CHART_DEFAULTS,animation:{duration:600}}});
+    return()=>chart.current?.destroy();
+  },[data,colors]);
+  return<canvas ref={ref} style={{height:height+'px'}}/>;
+};
+
+// ── Donut Chart ───────────────────────────────────────────────────────────────
+const DonutChart=({data,height=160})=>{
+  const ref=useRef();const chart=useRef();
+  useEffect(()=>{
+    if(!ref.current||!data)return;
+    if(chart.current)chart.current.destroy();
+    chart.current=new Chart(ref.current,{type:'doughnut',data:{
+      labels:data.labels,
+      datasets:[{data:data.values,backgroundColor:['#00ffb4aa','#00aaffaa','#ff7800aa','#cc88ffaa','#ffcc00aa'],borderWidth:0,hoverOffset:4}]
+    },options:{responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{display:true,position:'right',labels:{color:'#8899aa',font:{family:'Share Tech Mono',size:10},padding:12,boxWidth:10}},tooltip:{...CHART_DEFAULTS.plugins.tooltip}}}});
+    return()=>chart.current?.destroy();
+  },[data]);
+  return<canvas ref={ref} style={{height:height+'px'}}/>;
+};
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+const Login=({onLogin})=>{
+  const[u,setU]=useState('admin');const[p,setP]=useState('admin123');const[err,setErr]=useState('');const[loading,setLoading]=useState(false);
+  const login=async()=>{
+    setLoading(true);setErr('');
+    try{const res=await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+      const data=await res.json();if(!res.ok)throw new Error(data.error);
+      _token=data.token;onLogin(data.user);}
+    catch(e){setErr(e.message);}setLoading(false);
+  };
+  return(
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'radial-gradient(ellipse at 50% 40%,#001a2e,#030a14)'}}>
+      <div className="fade-in" style={{width:'100%',maxWidth:'380px',padding:'0 24px'}}>
+        <div className="text-center mb-8">
+          <div style={{fontSize:'48px',marginBottom:'12px'}}>📊</div>
+          <h1 className="glow-green mono" style={{color:'#00ffb4',fontSize:'24px',letterSpacing:'3px'}}>ANALYTICS</h1>
+          <p className="mono" style={{color:'#8899aa',fontSize:'11px',marginTop:'6px'}}>LIVE SENSE AI · DASHBOARD</p>
+        </div>
+        <div style={{background:'#060f1e',border:'1px solid rgba(0,255,180,0.15)',borderRadius:'16px',padding:'32px'}}>
+          <input value={u} onChange={e=>setU(e.target.value)} style={{width:'100%',background:'rgba(0,255,180,0.04)',border:'1px solid rgba(0,255,180,0.2)',color:'#e0fff8',borderRadius:'10px',padding:'12px 16px',fontFamily:'Share Tech Mono',fontSize:'13px',outline:'none',marginBottom:'12px'}} placeholder="Username"/>
+          <input type="password" value={p} onChange={e=>setP(e.target.value)} style={{width:'100%',background:'rgba(0,255,180,0.04)',border:'1px solid rgba(0,255,180,0.2)',color:'#e0fff8',borderRadius:'10px',padding:'12px 16px',fontFamily:'Share Tech Mono',fontSize:'13px',outline:'none',marginBottom:'16px'}} placeholder="Password" onKeyDown={e=>e.key==='Enter'&&login()}/>
+          {err&&<div className="mono text-center" style={{color:'#ff4466',fontSize:'12px',marginBottom:'12px'}}>{err}</div>}
+          <button onClick={login} disabled={loading} style={{width:'100%',padding:'12px',borderRadius:'10px',background:'linear-gradient(135deg,#00ffb4,#00c8ff)',color:'#030a14',fontWeight:'700',border:'none',cursor:'pointer',fontFamily:'Share Tech Mono',fontSize:'13px',letterSpacing:'2px'}}>
+            {loading?'...':'→ VIEW ANALYTICS'}</button>
+          <div style={{marginTop:'16px',display:'flex',flexDirection:'column',gap:'6px'}}>
+            {[['admin','admin123','Admin (full access)'],['dr.smith','doctor123','Doctor']].map(([u2,p2,l])=>(
+              <div key={u2} onClick={()=>{setU(u2);setP(p2);}} style={{padding:'8px 12px',borderRadius:'8px',background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)',cursor:'pointer',display:'flex',justifyContent:'space-between'}}>
+                <span className="mono" style={{color:'#00ffb4',fontSize:'11px'}}>{u2}</span>
+                <span className="mono" style={{color:'#8899aa',fontSize:'11px'}}>{l}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+const Dashboard=({user,onLogout})=>{
+  const[stats,setStats]=useState(null);
+  const[patients,setPatients]=useState([]);
+  const[audit,setAudit]=useState([]);
+  const[aiHistory,setAIHistory]=useState([]);
+  const[vitalsData,setVitalsData]=useState({});
+  const[loading,setLoading]=useState(true);
+  const[tab,setTab]=useState('overview');
+  const[uptime,setUptime]=useState(0);
+  const[liveVitals,setLiveVitals]=useState({hr:75,bp:120,o2:98,temp:37.0});
+
+  const load=useCallback(async()=>{
+    try{
+      const[s,p,a]=await Promise.all([api('GET','/stats'),api('GET','/patients'),api('GET','/audit').catch(()=>({logs:[]}))]);
+      setStats(s.stats);setPatients(p.patients);setAudit(a.logs||[]);
+
+      // Build vitals trend from patients
+      const vd={};
+      p.patients.forEach(pt=>{
+        if(pt.heart_rate){
+          if(!vd.hr)vd.hr={labels:[],values:[]};
+          vd.hr.labels.push(pt.name.split(' ')[0]);
+          vd.hr.values.push(Math.round(pt.heart_rate));
+        }
+      });
+      setVitalsData(vd);
+
+      // Fetch AI history for all patients
+      const aiAll=[];
+      for(const pt of p.patients.slice(0,4)){
+        try{const h=await api('GET',`/ai/history/${pt.id}`);
+          h.history.forEach(item=>aiAll.push({...item,patient:pt.name}));}
+        catch(e){}
+      }
+      setAIHistory(aiAll.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)));
+    }catch(e){}
+    setLoading(false);
+  },[]);
+
+  useEffect(()=>{load();},[load]);
+
+  // Live vitals simulation
+  useEffect(()=>{
+    const t=setInterval(()=>{
+      setUptime(x=>x+1);
+      setLiveVitals(v=>({
+        hr:Math.round(Math.max(55,Math.min(120,v.hr+(Math.random()-0.5)*4))),
+        bp:Math.round(Math.max(90,Math.min(160,v.bp+(Math.random()-0.5)*3))),
+        o2:Math.round(Math.max(88,Math.min(100,v.o2+(Math.random()-0.5)*2))),
+        temp:parseFloat(Math.max(36,Math.min(40,v.temp+(Math.random()-0.5)*0.1)).toFixed(1)),
+      }));
+    },2000);
+    return()=>clearInterval(t);
+  },[]);
+
+  if(loading)return(
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div className="mono" style={{color:'#00ffb4',fontSize:'14px',letterSpacing:'2px'}}>⚙ LOADING ANALYTICS...</div>
+    </div>
+  );
+
+  // Derived chart data
+  const wardData={
+    labels:[...new Set(patients.map(p=>p.ward))],
+    values:[...new Set(patients.map(p=>p.ward))].map(w=>patients.filter(p=>p.ward===w).length)
+  };
+
+  const hrData={labels:patients.map(p=>p.name.split(' ')[0]),values:patients.map(p=>Math.round(p.heart_rate||75))};
+  const bpData={labels:patients.map(p=>p.name.split(' ')[0]),values:patients.map(p=>Math.round(p.blood_pressure||120))};
+  const o2Data={labels:patients.map(p=>p.name.split(' ')[0]),values:patients.map(p=>Math.round(p.oxygen_saturation||98))};
+
+  const alertPatients=patients.filter(p=>p.heart_rate>100||p.heart_rate<55||p.oxygen_saturation<93||p.blood_pressure>140||p.temperature>38.5);
+
+  // Audit action counts
+  const actionCounts={};
+  audit.forEach(l=>{actionCounts[l.action]=(actionCounts[l.action]||0)+1;});
+  const auditChartData={labels:Object.keys(actionCounts),values:Object.values(actionCounts)};
+
+  const TABS=[{id:'overview',label:'📊 OVERVIEW'},{id:'vitals',label:'❤️ VITALS'},{id:'ai',label:'🤖 AI HISTORY'},{id:'audit',label:'🔍 AUDIT'}];
+
+  return(
+    <div style={{minHeight:'100vh',background:'#030a14'}}>
+      {/* Topbar */}
+      <div style={{position:'sticky',top:0,zIndex:50,background:'rgba(3,10,20,0.96)',borderBottom:'1px solid rgba(0,255,180,0.1)',backdropFilter:'blur(12px)',padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
+          <span style={{fontSize:'20px'}}>📊</span>
+          <span className="mono glow-green" style={{color:'#00ffb4',fontSize:'16px',letterSpacing:'3px',fontWeight:'700'}}>ANALYTICS</span>
+          <span className="mono" style={{background:'rgba(0,255,180,0.1)',border:'1px solid rgba(0,255,180,0.25)',color:'#00ffb4',padding:'2px 10px',borderRadius:'6px',fontSize:'10px'}}>LIVE</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
+          <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+            <div style={{width:'6px',height:'6px',borderRadius:'50%',background:'#00ffb4',boxShadow:'0 0 6px #00ffb4',animation:'pulse 2s infinite'}}></div>
+            <span className="mono" style={{color:'#8899aa',fontSize:'11px'}}>{uptime}s uptime</span>
+          </div>
+          <a href="hospital.html" style={{padding:'8px 16px',borderRadius:'8px',background:'rgba(0,255,180,0.1)',color:'#00ffb4',border:'1px solid rgba(0,255,180,0.3)',fontFamily:'Share Tech Mono',fontSize:'11px',textDecoration:'none'}}>🏥 MONITOR</a>
+          <a href="landing.html" style={{padding:'8px 16px',borderRadius:'8px',background:'rgba(255,255,255,0.05)',color:'#8899aa',border:'1px solid rgba(255,255,255,0.1)',fontFamily:'Share Tech Mono',fontSize:'11px',textDecoration:'none'}}>🏠 HOME</a>
+          <button onClick={onLogout} style={{padding:'8px 16px',borderRadius:'8px',background:'rgba(255,68,102,0.1)',color:'#ff4466',border:'1px solid rgba(255,68,102,0.3)',fontFamily:'Share Tech Mono',fontSize:'11px',cursor:'pointer'}}>LOGOUT</button>
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div style={{padding:'16px 24px',borderBottom:'1px solid rgba(255,255,255,0.06)',display:'flex',gap:'8px',overflowX:'auto'}}>
+        {TABS.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'8px 16px',borderRadius:'8px',fontFamily:'Share Tech Mono',fontSize:'11px',cursor:'pointer',whiteSpace:'nowrap',
+            background:tab===t.id?'rgba(0,255,180,0.15)':'rgba(255,255,255,0.04)',
+            color:tab===t.id?'#00ffb4':'#8899aa',
+            border:tab===t.id?'1px solid rgba(0,255,180,0.4)':'1px solid rgba(255,255,255,0.08)'}}>
+            {t.label}</button>
+        ))}
+      </div>
+
+      <div style={{padding:'24px',maxWidth:'1400px',margin:'0 auto'}}>
+
+        {/* ── OVERVIEW TAB ── */}
+        {tab==='overview'&&(
+          <div className="fade-in">
+            {/* KPI row */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:'16px',marginBottom:'24px'}}>
+              {[
+                ['🏥','Active Patients',stats?.active_patients,'#00ffb4'],
+                ['📊','Vitals Today',stats?.vitals_today,'#00aaff'],
+                ['🤖','AI Analyses',stats?.ai_analyses,'#ff7800'],
+                ['📋','Notes Written',stats?.total_notes,'#cc88ff'],
+                ['⚠️','Alerts Now',alertPatients.length,'#ff4466'],
+                ['👥','Total Users',stats?.total_users,'#ffcc00'],
+              ].map(([icon,label,val,color])=>(
+                <div key={label} style={{background:'#060f1e',border:`1px solid ${color}25`,borderRadius:'14px',padding:'20px',transition:'all 0.3s'}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor=color+'60'}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor=color+'25'}>
+                  <div style={{fontSize:'24px',marginBottom:'8px'}}>{icon}</div>
+                  <div className="mono" style={{color:'#8899aa',fontSize:'10px',marginBottom:'4px',letterSpacing:'1px'}}>{label}</div>
+                  <div className="mono" style={{color,fontSize:'32px',fontWeight:'700'}}>{val??'—'}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Live vitals monitor */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px',marginBottom:'24px'}}>
+              <div className="card">
+                <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>LIVE SYSTEM VITALS (AVERAGED)</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
+                  {[['❤️ Heart Rate',`${liveVitals.hr} bpm`,liveVitals.hr>100||liveVitals.hr<55?'#ff4466':'#00ffb4'],
+                    ['💉 Blood Pressure',`${liveVitals.bp} mmHg`,liveVitals.bp>140?'#ff4466':'#00aaff'],
+                    ['🫁 SpO₂',`${liveVitals.o2}%`,liveVitals.o2<93?'#ff4466':'#ffcc00'],
+                    ['🌡️ Temperature',`${liveVitals.temp}°C`,liveVitals.temp>38.5?'#ff4466':'#cc88ff'],
+                  ].map(([l,v,c])=>(
+                    <div key={l} style={{background:'rgba(255,255,255,0.03)',borderRadius:'10px',padding:'16px',border:`1px solid ${c}25`}}>
+                      <div className="mono" style={{color:'#8899aa',fontSize:'10px',marginBottom:'4px'}}>{l}</div>
+                      <div className="mono" style={{color:c,fontSize:'24px',fontWeight:'700'}}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>WARD DISTRIBUTION</div>
+                <div style={{height:'160px'}}>
+                  <DonutChart data={wardData}/>
+                </div>
+              </div>
+            </div>
+
+            {/* Alert patients */}
+            <div className="card" style={{marginBottom:'24px'}}>
+              <div className="mono" style={{color:'#ff4466',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>⚠ PATIENTS REQUIRING ATTENTION ({alertPatients.length})</div>
+              {alertPatients.length===0?(
+                <div className="mono text-center" style={{color:'#8899aa',padding:'24px'}}>✅ All patients stable</div>
+              ):alertPatients.map(p=>(
+                <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px',marginBottom:'8px',background:'rgba(255,68,102,0.06)',borderRadius:'10px',border:'1px solid rgba(255,68,102,0.2)'}}>
+                  <div>
+                    <div style={{fontWeight:'700',marginBottom:'2px'}}>{p.name}</div>
+                    <div className="mono" style={{color:'#8899aa',fontSize:'11px'}}>Room {p.room} · {p.condition}</div>
+                  </div>
+                  <div style={{display:'flex',gap:'8px',flexWrap:'wrap',justifyContent:'flex-end'}}>
+                    {p.heart_rate>100&&<span className="mono" style={{fontSize:'10px',padding:'3px 8px',borderRadius:'4px',background:'rgba(255,68,102,0.15)',color:'#ff4466'}}>HR {Math.round(p.heart_rate)}</span>}
+                    {p.blood_pressure>140&&<span className="mono" style={{fontSize:'10px',padding:'3px 8px',borderRadius:'4px',background:'rgba(255,68,102,0.15)',color:'#ff4466'}}>BP {Math.round(p.blood_pressure)}</span>}
+                    {p.oxygen_saturation<93&&<span className="mono" style={{fontSize:'10px',padding:'3px 8px',borderRadius:'4px',background:'rgba(255,68,102,0.15)',color:'#ff4466'}}>O₂ {Math.round(p.oxygen_saturation)}%</span>}
+                    {p.temperature>38.5&&<span className="mono" style={{fontSize:'10px',padding:'3px 8px',borderRadius:'4px',background:'rgba(255,68,102,0.15)',color:'#ff4466'}}>T {p.temperature}°C</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Audit actions chart */}
+            {auditChartData.labels.length>0&&(
+              <div className="card">
+                <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>SYSTEM ACTIVITY BREAKDOWN</div>
+                <div style={{height:'140px'}}>
+                  <BarChart data={auditChartData}/>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── VITALS TAB ── */}
+        {tab==='vitals'&&(
+          <div className="fade-in">
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px',marginBottom:'16px'}}>
+              <div className="card">
+                <div className="mono" style={{color:'#00ffb4',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>❤️ HEART RATE BY PATIENT (bpm)</div>
+                <div style={{height:'160px'}}><BarChart data={hrData} colors={patients.map(p=>p.heart_rate>100||p.heart_rate<55?'#ff4466aa':'#00ffb4aa')}/></div>
+                <div style={{display:'flex',gap:'16px',marginTop:'12px'}}>
+                  <div className="mono" style={{fontSize:'11px',color:'#8899aa'}}>AVG: <span style={{color:'#00ffb4'}}>{Math.round(patients.reduce((s,p)=>s+(p.heart_rate||75),0)/patients.length)} bpm</span></div>
+                  <div className="mono" style={{fontSize:'11px',color:'#8899aa'}}>HIGH: <span style={{color:'#ff4466'}}>{Math.max(...patients.map(p=>p.heart_rate||75))} bpm</span></div>
+                  <div className="mono" style={{fontSize:'11px',color:'#8899aa'}}>LOW: <span style={{color:'#00aaff'}}>{Math.min(...patients.map(p=>p.heart_rate||75))} bpm</span></div>
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="mono" style={{color:'#00aaff',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>💉 BLOOD PRESSURE BY PATIENT (mmHg)</div>
+                <div style={{height:'160px'}}><BarChart data={bpData} colors={patients.map(p=>p.blood_pressure>140?'#ff4466aa':'#00aaffaa')}/></div>
+                <div style={{display:'flex',gap:'16px',marginTop:'12px'}}>
+                  <div className="mono" style={{fontSize:'11px',color:'#8899aa'}}>AVG: <span style={{color:'#00aaff'}}>{Math.round(patients.reduce((s,p)=>s+(p.blood_pressure||120),0)/patients.length)} mmHg</span></div>
+                  <div className="mono" style={{fontSize:'11px',color:'#8899aa'}}>PEAK: <span style={{color:'#ff4466'}}>{Math.max(...patients.map(p=>p.blood_pressure||120))} mmHg</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px',marginBottom:'16px'}}>
+              <div className="card">
+                <div className="mono" style={{color:'#ffcc00',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>🫁 OXYGEN SATURATION BY PATIENT (%)</div>
+                <div style={{height:'160px'}}><BarChart data={o2Data} colors={patients.map(p=>p.oxygen_saturation<93?'#ff4466aa':'#ffcc00aa')}/></div>
+                <div style={{display:'flex',gap:'16px',marginTop:'12px'}}>
+                  <div className="mono" style={{fontSize:'11px',color:'#8899aa'}}>AVG: <span style={{color:'#ffcc00'}}>{Math.round(patients.reduce((s,p)=>s+(p.oxygen_saturation||98),0)/patients.length)}%</span></div>
+                  <div className="mono" style={{fontSize:'11px',color:'#8899aa'}}>CRITICAL: <span style={{color:'#ff4466'}}>{patients.filter(p=>p.oxygen_saturation<93).length} patients</span></div>
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>📋 PATIENT VITALS SUMMARY</div>
+                <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse'}}>
+                    <thead>
+                      <tr>{['PATIENT','HR','BP','O₂','°C','STATUS'].map(h=><th key={h} className="mono" style={{color:'#8899aa',fontSize:'9px',padding:'6px 8px',textAlign:'left',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>{h}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {patients.map(p=>{
+                        const alert=p.heart_rate>100||p.heart_rate<55||p.oxygen_saturation<93||p.blood_pressure>140||p.temperature>38.5;
+                        return(<tr key={p.id}>
+                          <td className="mono" style={{fontSize:'11px',padding:'8px',color:'#e0fff8'}}>{p.name.split(' ')[0]}</td>
+                          <td className="mono" style={{fontSize:'11px',padding:'8px',color:p.heart_rate>100||p.heart_rate<55?'#ff4466':'#00ffb4'}}>{Math.round(p.heart_rate||75)}</td>
+                          <td className="mono" style={{fontSize:'11px',padding:'8px',color:p.blood_pressure>140?'#ff4466':'#00aaff'}}>{Math.round(p.blood_pressure||120)}</td>
+                          <td className="mono" style={{fontSize:'11px',padding:'8px',color:p.oxygen_saturation<93?'#ff4466':'#ffcc00'}}>{Math.round(p.oxygen_saturation||98)}%</td>
+                          <td className="mono" style={{fontSize:'11px',padding:'8px',color:p.temperature>38.5?'#ff4466':'#cc88ff'}}>{p.temperature?.toFixed(1)||'37.0'}</td>
+                          <td style={{padding:'8px'}}><span className="mono" style={{fontSize:'9px',padding:'2px 6px',borderRadius:'4px',background:alert?'rgba(255,68,102,0.15)':'rgba(0,255,180,0.1)',color:alert?'#ff4466':'#00ffb4'}}>{alert?'ALERT':'STABLE'}</span></td>
+                        </tr>);
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── AI HISTORY TAB ── */}
+        {tab==='ai'&&(
+          <div className="fade-in">
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:'16px',marginBottom:'24px'}}>
+              {['LOW','MEDIUM','HIGH','CRITICAL'].map(level=>{
+                const count=aiHistory.filter(h=>h.risk_level===level).length;
+                const colors={LOW:'#00ffb4',MEDIUM:'#ffcc00',HIGH:'#ff7800',CRITICAL:'#ff4466'};
+                return(<div key={level} style={{background:'#060f1e',border:`1px solid ${colors[level]}25`,borderRadius:'14px',padding:'20px'}}>
+                  <div className="mono" style={{color:'#8899aa',fontSize:'10px',marginBottom:'6px'}}>{level} RISK</div>
+                  <div className="mono" style={{color:colors[level],fontSize:'36px',fontWeight:'700'}}>{count}</div>
+                  <div className="mono" style={{color:'#8899aa',fontSize:'10px',marginTop:'4px'}}>analyses</div>
+                </div>);
+              })}
+            </div>
+
+            {aiHistory.length===0?(
+              <div className="card text-center" style={{padding:'48px'}}>
+                <div style={{fontSize:'48px',marginBottom:'16px'}}>🤖</div>
+                <div className="mono" style={{color:'#8899aa'}}>No AI analyses yet. Click 🤖 AI on any patient card in the monitor.</div>
+              </div>
+            ):(
+              <div className="card">
+                <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>AI DIAGNOSIS HISTORY ({aiHistory.length} analyses)</div>
+                {aiHistory.map((h,i)=>{
+                  const d=typeof h.diagnosis==='string'?JSON.parse(h.diagnosis):h.diagnosis;
+                  const colors={LOW:'#00ffb4',MEDIUM:'#ffcc00',HIGH:'#ff7800',CRITICAL:'#ff4466'};
+                  const c=colors[h.risk_level]||'#8899aa';
+                  return(<div key={i} style={{padding:'16px',marginBottom:'12px',background:'rgba(255,255,255,0.02)',borderRadius:'12px',border:`1px solid ${c}20`}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'start',marginBottom:'8px'}}>
+                      <div>
+                        <span style={{fontWeight:'700',marginRight:'8px'}}>{h.patient}</span>
+                        <span className={`mono risk-${h.risk_level}`} style={{fontSize:'10px',padding:'2px 8px',borderRadius:'4px'}}>{h.risk_level}</span>
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
+                        <span className="mono" style={{color:c,fontSize:'14px',fontWeight:'700'}}>{h.risk_score}/100</span>
+                        <span className="mono" style={{color:'#8899aa',fontSize:'10px'}}>{new Date(h.created_at).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <div style={{fontSize:'13px',color:'#c0ffe8',lineHeight:'1.6',marginBottom:'8px'}}>{d?.summary||h.summary||'—'}</div>
+                    {h.requested_by&&<div className="mono" style={{fontSize:'10px',color:'#8899aa'}}>Requested by: {h.requested_by}</div>}
+                  </div>);
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── AUDIT TAB ── */}
+        {tab==='audit'&&(
+          <div className="fade-in">
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px',marginBottom:'24px'}}>
+              <div className="card">
+                <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>ACTION FREQUENCY</div>
+                {auditChartData.labels.length>0&&<div style={{height:'180px'}}><BarChart data={auditChartData}/></div>}
+              </div>
+              <div className="card">
+                <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>SYSTEM STATS</div>
+                {[['Total Events',audit.length,'#00ffb4'],['Logins',audit.filter(l=>l.action==='LOGIN').length,'#00aaff'],['AI Analyses',audit.filter(l=>l.action==='AI_DIAGNOSE').length,'#ff7800'],['Notes Added',audit.filter(l=>l.action==='ADD_NOTE').length,'#cc88ff'],['FHIR Fetches',audit.filter(l=>l.action==='FHIR_FETCH').length,'#ffcc00'],].map(([l,v,c])=>(
+                  <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+                    <span className="mono" style={{color:'#8899aa',fontSize:'12px'}}>{l}</span>
+                    <span className="mono" style={{color:c,fontSize:'12px',fontWeight:'700'}}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="mono" style={{color:'#8899aa',fontSize:'10px',letterSpacing:'2px',marginBottom:'16px'}}>FULL AUDIT LOG ({audit.length} events)</div>
+              <div style={{maxHeight:'400px',overflowY:'auto'}}>
+                {audit.map(log=>{
+                  const actionColor=log.action.includes('AI')?'#ff7800':log.action.includes('LOGIN')?'#00ffb4':log.action.includes('NOTE')?'#cc88ff':log.action.includes('FHIR')?'#00aaff':'#8899aa';
+                  return(<div key={log.id} style={{padding:'10px 12px',marginBottom:'6px',background:'rgba(255,255,255,0.02)',borderRadius:'8px',border:'1px solid rgba(255,255,255,0.04)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
+                      <span className="mono" style={{color:actionColor,fontSize:'11px',minWidth:'120px'}}>{log.action}</span>
+                      <span className="mono" style={{color:'#8899aa',fontSize:'11px'}}>{log.user_name} — {log.details}</span>
+                    </div>
+                    <span className="mono" style={{color:'#8899aa',fontSize:'10px',flexShrink:0,marginLeft:'12px'}}>{new Date(log.created_at).toLocaleTimeString()}</span>
+                  </div>);
+                })}
+                {audit.length===0&&<div className="mono text-center" style={{color:'#8899aa',padding:'24px'}}>No audit logs yet.</div>}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const App=()=>{const[user,setUser]=useState(null);return user?<Dashboard user={user} onLogout={()=>{_token=null;setUser(null);}}/>:<Login onLogin={setUser}/>;};
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
