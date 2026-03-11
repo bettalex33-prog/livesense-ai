@@ -490,4 +490,4 @@ app.use('/mobile', require('express').static(require('path').join(__dirname, 'mo
 
 
 app.use('/mobile', express.static(require('path').join(__dirname, 'mobile')));
-app.listen(3001, () => { console.log('\n?? Live Sense AI v6.0 — http://localhost:3001\n?? PWA: http://localhost:3001/mobile'); });
+app.listen(process.env.PORT || 3001, () => { console.log('\n?? Live Sense AI v6.0 — http://localhost:3001\n?? PWA: http://localhost:3001/mobile'); });
