@@ -578,7 +578,7 @@ const Dashboard=({user,onLogout})=>{
       const mapped=d.patients.map(p=>({...p,hr:p.heart_rate||75,bp:p.blood_pressure||120,o2:p.oxygen_saturation||98,temp:p.temperature||37.0,
         history:{hr:[p.heart_rate||75],bp:[p.blood_pressure||120],o2:[p.oxygen_saturation||98]},ecg_waveform:null,spo2_waveform:null,ecg_pattern:'normal'}));
       setPatients(mapped);
-      api('GET','/simulator').then(sim=>{setPatients(prev=>{var pts=prev.map(function(p){var sv=sim.results.find(function(r){return r.id===p.id;});return sv?Object.assign({},p,{hr:sv.vitals.hr,bp:sv.vitals.bp,o2:sv.vitals.o2,temp:sv.vitals.temp,ecg_waveform:sv.ecg_waveform,spo2_waveform:sv.spo2_waveform,ecg_pattern:sv.ecg_pattern}):p;});setTimeout(function(){pts.forEach(function(p){var r=checkCDS(p);if(r.length)showCDSAlert(p,r);});},800);return pts;}).catch(()=>{});
+      api('GET','/simulator').then(sim=>setPatients(prev=>prev.map(p=>{const s=sim.results.find(r=>r.id===p.id);return s?{...p,hr:s.vitals.hr,bp:s.vitals.bp,o2:s.vitals.o2,temp:s.vitals.temp,ecg_waveform:s.ecg_waveform,spo2_waveform:s.spo2_waveform,ecg_pattern:s.ecg_pattern}:p;}))).catch(()=>{});
     }).catch(()=>showToast('❌ Could not load patients','red'));
   },[]);
 
@@ -692,74 +692,6 @@ const Dashboard=({user,onLogout})=>{
 
 const App=()=>{const[user,setUser]=useState(null);return user?<Dashboard user={user} onLogout={()=>setUser(null)}/>:<Login onLogin={setUser}/>;};
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
-
-
-function checkCDS(p) {
-  var rules = [];
-  var hr = p.hr || p.heart_rate || 75;
-  var bp = p.bp || p.blood_pressure || 120;
-  var o2 = p.o2 || p.oxygen_saturation || 98;
-  var temp = p.temp || p.temperature || 37;
-  if (bp >= 180) rules.push({severity:'CRITICAL',title:'HYPERTENSIVE CRISIS',intervention:'IV Labetalol 20mg stat. Recheck BP every 5 min. Call physician immediately.',color:'#ff4466'});
-  else if (bp >= 140) rules.push({severity:'HIGH',title:'HYPERTENSION ALERT',intervention:'Review antihypertensives. Consider IV Hydralazine. Monitor closely.',color:'#ff7800'});
-  if (bp < 90) rules.push({severity:'CRITICAL',title:'HYPOTENSIVE SHOCK',intervention:'IV fluid bolus 500mL NS stat. Vasopressors if no response. ICU transfer.',color:'#ff4466'});
-  if (o2 < 88) rules.push({severity:'CRITICAL',title:'SEVERE HYPOXIA',intervention:'100% O2 non-rebreather mask. Call respiratory. Prepare for intubation.',color:'#ff4466'});
-  else if (o2 < 93) rules.push({severity:'HIGH',title:'HYPOXIA WARNING',intervention:'Increase O2. Reposition patient. Order ABG. Notify physician.',color:'#ff7800'});
-  if (hr > 130) rules.push({severity:'CRITICAL',title:'SEVERE TACHYCARDIA',intervention:'Blood cultures stat. IV fluids. 12-lead ECG. Call cardiology.',color:'#ff4466'});
-  else if (hr > 100) rules.push({severity:'HIGH',title:'TACHYCARDIA',intervention:'Check cause: pain/fever/dehydration. IV fluids. Monitor rhythm.',color:'#ff7800'});
-  if (hr < 50) rules.push({severity:'CRITICAL',title:'SEVERE BRADYCARDIA',intervention:'Atropine 0.5mg IV stat. Prepare pacing. Call cardiology now.',color:'#ff4466'});
-  if (temp > 39.5) rules.push({severity:'CRITICAL',title:'HIGH FEVER — SEPSIS RISK',intervention:'Blood cultures x2 stat. Broad-spectrum antibiotics. IV fluids. Sepsis protocol.',color:'#ff4466'});
-  else if (temp > 38.5) rules.push({severity:'HIGH',title:'FEVER',intervention:'Paracetamol 1g IV. Blood cultures. WBC and CRP. Monitor hourly.',color:'#ff7800'});
-  return rules;
-}
-var cdsShown = {};
-var cdsAcked = {};
-function showCDSAlert(patient, rules) {
-  var key = patient.id + '-' + rules.map(function(r){return r.title;}).join('|');
-  if (cdsAcked[key]) return;
-  if (cdsShown[patient.id] === key) return;
-  var existing = document.getElementById('cds-overlay');
-  if (existing) return;
-  cdsShown[patient.id] = key;
-  var topRule = rules.filter(function(r){return r.severity==='CRITICAL';})[0] || rules[0];
-  var hr = Math.round(patient.hr||patient.heart_rate||0);
-  var bp = Math.round(patient.bp||patient.blood_pressure||0);
-  var o2 = Math.round(patient.o2||patient.oxygen_saturation||0);
-  var temp = parseFloat(patient.temp||patient.temperature||37).toFixed(1);
-  var rulesHtml = rules.map(function(r){
-    return '<div style="padding:12px;margin-bottom:8px;border-radius:8px;background:'+r.color+'18;border:1px solid '+r.color+'40">'+
-      '<span style="font-family:monospace;font-size:10px;padding:2px 6px;border-radius:3px;background:'+r.color+'25;color:'+r.color+'">'+r.severity+'</span> '+
-      '<strong style="color:'+r.color+'">'+r.title+'</strong>'+
-      '<div style="font-size:13px;color:#e0fff8;margin-top:6px;line-height:1.6">'+r.intervention+'</div></div>';
-  }).join('');
-  var div = document.createElement('div');
-  div.id = 'cds-overlay';
-  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:99999;display:flex;align-items:center;justify-content:center;';
-  div.innerHTML = '<div style="background:#060f1e;border:2px solid '+topRule.color+';border-radius:16px;padding:24px;max-width:520px;width:90%;box-shadow:0 0 40px '+topRule.color+'50">'+
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'+
-    '<div style="width:12px;height:12px;border-radius:50%;background:'+topRule.color+'"></div>'+
-    '<span style="font-family:monospace;font-size:11px;color:'+topRule.color+';letter-spacing:2px">CDS ALERT — '+topRule.severity+'</span></div>'+
-    '<h2 style="font-size:20px;font-weight:800;margin-bottom:2px">'+patient.name+'</h2>'+
-    '<p style="font-family:monospace;font-size:11px;color:#8899aa;margin-bottom:14px">Room '+(patient.room||'?')+' · '+(patient.ward||'?')+' · '+(patient.condition||'?')+'</p>'+
-    rulesHtml+
-    '<div style="font-family:monospace;font-size:11px;color:#8899aa;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px;margin-bottom:12px">'+
-    'HR: '+hr+' | BP: '+bp+' | O2: '+o2+'% | Temp: '+temp+'C</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
-    '<button onclick="document.getElementById('cds-overlay').remove();cdsAcked[''+key+'\']=true;" style="padding:10px;border-radius:7px;background:'+topRule.color+';color:#fff;font-family:monospace;font-size:11px;font-weight:700;border:none;cursor:pointer">✓ ACKNOWLEDGED</button>'+
-    '<button onclick="document.getElementById('cds-overlay').remove();delete cdsShown[''+patient.id+''];" style="padding:10px;border-radius:7px;background:rgba(255,255,255,0.05);color:#8899aa;font-family:monospace;font-size:11px;border:1px solid rgba(255,255,255,0.1);cursor:pointer">DISMISS</button>'+
-    '</div></div>';
-  document.body.appendChild(div);
-  try {
-    var ctx = new (window.AudioContext||window.webkitAudioContext)();
-    [[880,0,0.1],[880,0.15,0.1],[1100,0.3,0.2]].forEach(function(b){
-      var o=ctx.createOscillator(),g=ctx.createGain();
-      o.connect(g);g.connect(ctx.destination);o.frequency.value=b[0];
-      g.gain.setValueAtTime(0.2,ctx.currentTime+b[1]);
-      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+b[1]+b[2]);
-      o.start(ctx.currentTime+b[1]);o.stop(ctx.currentTime+b[1]+b[2]);
-    });
-  } catch(e){}
-}
 
 </script>
 </body>
