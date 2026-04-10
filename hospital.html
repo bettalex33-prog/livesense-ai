@@ -578,7 +578,7 @@ const Dashboard=({user,onLogout})=>{
       const mapped=d.patients.map(p=>({...p,hr:p.heart_rate||75,bp:p.blood_pressure||120,o2:p.oxygen_saturation||98,temp:p.temperature||37.0,
         history:{hr:[p.heart_rate||75],bp:[p.blood_pressure||120],o2:[p.oxygen_saturation||98]},ecg_waveform:null,spo2_waveform:null,ecg_pattern:'normal'}));
       setPatients(mapped);
-      api('GET','/simulator').then(sim=>{setPatients(prev=>{const pts=prev.map(p=>{const sv=sim.results.find(r=>r.id===p.id);return sv?{...p,hr:sv.vitals.hr,bp:sv.vitals.bp,o2:sv.vitals.o2,temp:sv.vitals.temp,heart_rate:sv.vitals.hr,blood_pressure:sv.vitals.bp,oxygen_saturation:sv.vitals.o2,temperature:sv.vitals.temp,ecg_waveform:sv.ecg_waveform,spo2_waveform:sv.spo2_waveform,ecg_pattern:sv.ecg_pattern}:p;});pts.forEach(function(p){var rules=checkCDS(p);if(rules.length>0)showCDSAlert(p,rules);});return pts;}).catch(()=>{});
+      api('GET','/simulator').then(function(sim){setPatients(function(prev){var pts=prev.map(function(p){var sv=sim.results.find(function(r){return r.id===p.id;});return sv?Object.assign({},p,{hr:sv.vitals.hr,bp:sv.vitals.bp,o2:sv.vitals.o2,temp:sv.vitals.temp,heart_rate:sv.vitals.hr,blood_pressure:sv.vitals.bp,oxygen_saturation:sv.vitals.o2,temperature:sv.vitals.temp,ecg_waveform:sv.ecg_waveform,spo2_waveform:sv.spo2_waveform,ecg_pattern:sv.ecg_pattern}):p;});setTimeout(function(){pts.forEach(function(p){var rules=checkCDS(p);if(rules.length>0)showCDSAlert(p,rules);});},500);return pts;}).catch(()=>{});
     }).catch(()=>showToast('❌ Could not load patients','red'));
   },[]);
 
@@ -689,69 +689,72 @@ const Dashboard=({user,onLogout})=>{
 };
 
 
+
 const CDS_RULES = [
-  {condition: p => p.blood_pressure >= 180, severity: 'CRITICAL', title: 'HYPERTENSIVE CRISIS', intervention: 'Administer IV Labetalol 20mg stat. Recheck BP in 5 min. Call physician immediately.', color: '#ff4466'},
-  {condition: p => p.blood_pressure >= 140 && p.blood_pressure < 180, severity: 'HIGH', title: 'HYPERTENSION ALERT', intervention: 'Review antihypertensive medications. Consider IV Hydralazine. Monitor closely.', color: '#ff7800'},
-  {condition: p => p.blood_pressure < 90, severity: 'CRITICAL', title: 'HYPOTENSIVE SHOCK', intervention: 'IV fluid bolus 500mL NS stat. Vasopressors if no response. Transfer to ICU immediately.', color: '#ff4466'},
-  {condition: p => p.oxygen_saturation < 88, severity: 'CRITICAL', title: 'SEVERE HYPOXIA', intervention: 'Apply 100% O2 non-rebreather mask. Call respiratory therapy. Prepare for intubation.', color: '#ff4466'},
-  {condition: p => p.oxygen_saturation < 93, severity: 'HIGH', title: 'HYPOXIA WARNING', intervention: 'Increase supplemental O2. Reposition patient. Order ABG. Notify physician.', color: '#ff7800'},
-  {condition: p => p.heart_rate > 130, severity: 'CRITICAL', title: 'SEVERE TACHYCARDIA', intervention: 'Check for sepsis — blood cultures stat. IV fluid challenge. 12-lead ECG. Call cardiology.', color: '#ff4466'},
-  {condition: p => p.heart_rate > 100, severity: 'HIGH', title: 'TACHYCARDIA', intervention: 'Identify cause: pain, fever, dehydration. IV fluids if dry. Monitor rhythm continuously.', color: '#ff7800'},
-  {condition: p => p.heart_rate < 50, severity: 'CRITICAL', title: 'SEVERE BRADYCARDIA', intervention: 'Atropine 0.5mg IV stat. Prepare transcutaneous pacing. Call cardiology now.', color: '#ff4466'},
-  {condition: p => p.temperature > 39.5, severity: 'CRITICAL', title: 'HIGH FEVER — SEPSIS RISK', intervention: 'Blood cultures x2 stat. Start broad-spectrum antibiotics. IV fluids. Sepsis protocol.', color: '#ff4466'},
-  {condition: p => p.temperature > 38.5, severity: 'HIGH', title: 'FEVER', intervention: 'Paracetamol 1g IV. Blood cultures. Check WBC and CRP. Monitor temperature hourly.', color: '#ff7800'},
+  {condition: function(p){return (p.blood_pressure||p.bp||0) >= 180;}, severity: 'CRITICAL', title: 'HYPERTENSIVE CRISIS', intervention: 'Administer IV Labetalol 20mg stat. Recheck BP in 5 min. Call physician immediately.', color: '#ff4466'},
+  {condition: function(p){var bp=p.blood_pressure||p.bp||0;return bp >= 140 && bp < 180;}, severity: 'HIGH', title: 'HYPERTENSION ALERT', intervention: 'Review antihypertensive medications. Consider IV Hydralazine. Monitor closely.', color: '#ff7800'},
+  {condition: function(p){return (p.blood_pressure||p.bp||120) < 90;}, severity: 'CRITICAL', title: 'HYPOTENSIVE SHOCK', intervention: 'IV fluid bolus 500mL NS stat. Vasopressors if no response. Transfer to ICU immediately.', color: '#ff4466'},
+  {condition: function(p){return (p.oxygen_saturation||p.o2||98) < 88;}, severity: 'CRITICAL', title: 'SEVERE HYPOXIA', intervention: 'Apply 100% O2 non-rebreather mask. Call respiratory therapy. Prepare for intubation.', color: '#ff4466'},
+  {condition: function(p){var o2=p.oxygen_saturation||p.o2||98;return o2 < 93 && o2 >= 88;}, severity: 'HIGH', title: 'HYPOXIA WARNING', intervention: 'Increase supplemental O2. Reposition patient. Order ABG. Notify physician.', color: '#ff7800'},
+  {condition: function(p){return (p.heart_rate||p.hr||75) > 130;}, severity: 'CRITICAL', title: 'SEVERE TACHYCARDIA', intervention: 'Check for sepsis — blood cultures stat. IV fluid challenge. 12-lead ECG. Call cardiology.', color: '#ff4466'},
+  {condition: function(p){var hr=p.heart_rate||p.hr||75;return hr > 100 && hr <= 130;}, severity: 'HIGH', title: 'TACHYCARDIA', intervention: 'Identify cause: pain, fever, dehydration. IV fluids if dry. Monitor rhythm continuously.', color: '#ff7800'},
+  {condition: function(p){return (p.heart_rate||p.hr||75) < 50;}, severity: 'CRITICAL', title: 'SEVERE BRADYCARDIA', intervention: 'Atropine 0.5mg IV stat. Prepare transcutaneous pacing. Call cardiology now.', color: '#ff4466'},
+  {condition: function(p){return (p.temperature||p.temp||37) > 39.5;}, severity: 'CRITICAL', title: 'HIGH FEVER — SEPSIS RISK', intervention: 'Blood cultures x2 stat. Start broad-spectrum antibiotics. IV fluids. Sepsis protocol.', color: '#ff4466'},
+  {condition: function(p){var t=p.temperature||p.temp||37;return t > 38.5 && t <= 39.5;}, severity: 'HIGH', title: 'FEVER', intervention: 'Paracetamol 1g IV. Blood cultures. Check WBC and CRP. Monitor temperature hourly.', color: '#ff7800'},
 ];
 const cdsAlerts = {};
 const acknowledgedAlerts = new Set();
-const checkCDS = (patient) => CDS_RULES.filter(r => r.condition(patient));
-const showCDSAlert = (patient, rules) => {
-  const key = patient.id + '-' + rules.map(r=>r.title).join(',');
+function checkCDS(patient) { return CDS_RULES.filter(function(r){return r.condition(patient);}); }
+function showCDSAlert(patient, rules) {
+  const key = patient.id + '-' + rules.map(function(r){return r.title;}).join(',');
   if (acknowledgedAlerts.has(key)) return;
-  if (cdsAlerts[patient.id] && cdsAlerts[patient.id].key === key) return;
+  if (cdsAlerts[patient.id] && cdsAlerts[patient.id] === key) return;
   const existing = document.getElementById('cds-overlay');
   if (existing) existing.remove();
   const overlay = document.createElement('div');
   overlay.id = 'cds-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;display:flex;align-items:center;justify-content:center;';
-  const criticals = rules.filter(r=>r.severity==='CRITICAL');
-  const topRule = criticals[0] || rules[0];
-  const vitalsHtml = 'HR: ' + Math.round(patient.heart_rate) + ' bpm | BP: ' + Math.round(patient.blood_pressure) + ' mmHg | O2: ' + Math.round(patient.oxygen_saturation) + '% | Temp: ' + (patient.temperature||37).toFixed(1) + 'C';
-  const rulesHtml = rules.map(r =>
-    '<div style="padding:14px;margin-bottom:10px;border-radius:10px;background:' + r.color + '15;border:1px solid ' + r.color + '40;">' +
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
-    '<span style="font-family:monospace;font-size:10px;padding:2px 8px;border-radius:4px;background:' + r.color + '25;color:' + r.color + ';">' + r.severity + '</span>' +
-    '<span style="font-weight:700;font-size:15px;color:' + r.color + ';">' + r.title + '</span></div>' +
-    '<div style="font-size:13px;line-height:1.6;color:#e0fff8;">INTERVENTION: ' + r.intervention + '</div></div>'
-  ).join('');
+  const topRule = rules.filter(function(r){return r.severity==='CRITICAL';})[0] || rules[0];
+  const hr = Math.round(patient.heart_rate||patient.hr||0);
+  const bp = Math.round(patient.blood_pressure||patient.bp||0);
+  const o2 = Math.round(patient.oxygen_saturation||patient.o2||0);
+  const temp = (patient.temperature||patient.temp||37).toFixed(1);
+  let rulesHtml = '';
+  rules.forEach(function(r) {
+    rulesHtml += '<div style="padding:14px;margin-bottom:10px;border-radius:10px;background:' + r.color + '18;border:1px solid ' + r.color + '40;">' +
+      '<div style="margin-bottom:6px;"><span style="font-family:monospace;font-size:10px;padding:2px 8px;border-radius:4px;background:' + r.color + '25;color:' + r.color + ';">' + r.severity + '</span> ' +
+      '<span style="font-weight:700;font-size:15px;color:' + r.color + ';">' + r.title + '</span></div>' +
+      '<div style="font-size:13px;line-height:1.6;color:#e0fff8;">INTERVENTION: ' + r.intervention + '</div></div>';
+  });
   overlay.innerHTML =
     '<div style="background:#060f1e;border:2px solid ' + topRule.color + ';border-radius:18px;padding:28px;max-width:540px;width:90%;box-shadow:0 0 60px ' + topRule.color + '40;">' +
     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">' +
-    '<div style="width:14px;height:14px;border-radius:50%;background:' + topRule.color + ';box-shadow:0 0 10px ' + topRule.color + ';"></div>' +
+    '<div style="width:14px;height:14px;border-radius:50%;background:' + topRule.color + ';animation:alert-pulse 0.8s infinite;"></div>' +
     '<span style="font-family:monospace;font-size:11px;color:' + topRule.color + ';letter-spacing:2px;">CLINICAL DECISION SUPPORT — ' + topRule.severity + '</span></div>' +
-    '<h2 style="font-size:22px;font-weight:800;margin-bottom:4px;">' + patient.name + '</h2>' +
-    '<p style="font-family:monospace;font-size:11px;color:#8899aa;margin-bottom:16px;">Room ' + patient.room + ' · ' + patient.ward + ' · ' + patient.condition + '</p>' +
+    '<h2 style="font-size:22px;font-weight:800;margin-bottom:4px;color:#fff;">' + patient.name + '</h2>' +
+    '<p style="font-family:monospace;font-size:11px;color:#8899aa;margin-bottom:16px;">Room ' + (patient.room||'—') + ' · ' + (patient.ward||'—') + ' · ' + (patient.condition||'—') + '</p>' +
     rulesHtml +
-    '<div style="font-family:monospace;font-size:11px;color:#8899aa;padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;margin-bottom:14px;">' + vitalsHtml + '</div>' +
+    '<div style="font-family:monospace;font-size:11px;color:#8899aa;padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;margin-bottom:14px;">HR: ' + hr + ' bpm | BP: ' + bp + ' mmHg | O2: ' + o2 + '% | Temp: ' + temp + 'C</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
-    '<button onclick="document.getElementById('cds-overlay').remove();acknowledgedAlerts.add('' + key + '');" style="padding:12px;border-radius:8px;background:' + topRule.color + ';color:#fff;font-family:monospace;font-size:12px;font-weight:700;border:none;cursor:pointer;">ACKNOWLEDGED</button>' +
-    '<button onclick="document.getElementById('cds-overlay').remove();" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.06);color:#8899aa;font-family:monospace;font-size:12px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;">DISMISS</button>' +
-    '</div>' +
-    '<p style="font-family:monospace;font-size:10px;color:#8899aa;margin-top:12px;text-align:center;">Logged in audit trail · Live Sense AI CDS v1.0</p>' +
-    '</div>';
+    '<button id="cds-ack" style="padding:12px;border-radius:8px;background:' + topRule.color + ';color:#fff;font-family:monospace;font-size:12px;font-weight:700;border:none;cursor:pointer;">ACKNOWLEDGED</button>' +
+    '<button id="cds-dismiss" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.06);color:#8899aa;font-family:monospace;font-size:12px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;">DISMISS</button>' +
+    '</div><p style="font-family:monospace;font-size:10px;color:#8899aa;margin-top:12px;text-align:center;">Logged in audit trail · Live Sense AI CDS v1.0</p></div>';
   document.body.appendChild(overlay);
-  cdsAlerts[patient.id] = {key: key};
+  cdsAlerts[patient.id] = key;
+  overlay.querySelector('#cds-ack').onclick = function() { overlay.remove(); acknowledgedAlerts.add(key); };
+  overlay.querySelector('#cds-dismiss').onclick = function() { overlay.remove(); };
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [[880,0,0.12],[880,0.18,0.12],[1100,0.36,0.25]].forEach(function(b) {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.frequency.value = b[0];
-      g.gain.setValueAtTime(0.25, ctx.currentTime + b[1]);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + b[1] + b[2]);
-      o.start(ctx.currentTime + b[1]); o.stop(ctx.currentTime + b[1] + b[2]);
+    [[880,0,0.12],[880,0.2,0.12],[1100,0.4,0.25]].forEach(function(b){
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.connect(g);g.connect(ctx.destination);
+      o.frequency.value=b[0];
+      g.gain.setValueAtTime(0.25,ctx.currentTime+b[1]);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+b[1]+b[2]);
+      o.start(ctx.currentTime+b[1]);o.stop(ctx.currentTime+b[1]+b[2]);
     });
   } catch(e) {}
-};
+}
 
 const App=()=>{const[user,setUser]=useState(null);return user?<Dashboard user={user} onLogout={()=>setUser(null)}/>:<Login onLogin={setUser}/>;};
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
